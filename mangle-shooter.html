@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mangle vs Stitchwraith!</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Creepster&family=Bangers&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a12;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Bangers', cursive;
+    overflow: hidden;
+    user-select: none;
+  }
+  #title {
+    color: #e0c8ff;
+    font-size: 1.8rem;
+    letter-spacing: 3px;
+    text-shadow: 0 0 16px #8844cc, 0 3px 0 #330066;
+    margin-bottom: 6px;
+  }
+  #hud { display: flex; gap: 28px; margin-bottom: 6px; font-size: 1.3rem; }
+  #score-display { color: #ffd700; text-shadow: 0 0 10px #ffd700; }
+  #lives-display { color: #ff4444; }
+  #level-display { color: #cc88ff; text-shadow: 0 0 10px #8844cc; }
+  canvas {
+    border: 2px solid #8844cc;
+    box-shadow: 0 0 30px #8844cc44;
+    border-radius: 6px;
+    max-width: 100%;
+    cursor: crosshair;
+  }
+  #overlay {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.9); z-index: 10;
+  }
+  #overlay h2 {
+    font-family: 'Creepster', cursive;
+    font-size: 2.8rem; color: #e0c8ff;
+    text-shadow: 0 0 24px #8844cc;
+    margin-bottom: 10px;
+  }
+  .play-btn {
+    margin-top: 18px; padding: 12px 40px;
+    font-family: 'Bangers', cursive; font-size: 1.8rem; letter-spacing: 3px;
+    background: linear-gradient(135deg, #4a1a88, #8844cc);
+    color: #fff; border: none; border-radius: 6px; cursor: pointer;
+    box-shadow: 0 0 20px #8844cc88; transition: transform 0.1s;
+  }
+  .play-btn:hover { transform: scale(1.07); }
+</style>
+</head>
+<body>
+<div id="title">🦊 MANGLE vs THE STITCHWRAITH 👻</div>
+<div id="hud">
+  <span id="score-display">SCORE: 0</span>
+  <span id="lives-display">❤️❤️❤️</span>
+  <span id="level-display">LEVEL: 1</span>
+</div>
+<canvas id="game" width="480" height="480"></canvas>
+<div id="overlay">
+  <h2>MANGLE vs<br>STITCHWRAITH!</h2>
+  <p style="color:#cc88ff;font-family:'Bangers',cursive;font-size:1.1rem;letter-spacing:2px;">Stitchwraiths closing in from both sides!</p>
+  <p style="color:#888;font-family:'Bangers',cursive;letter-spacing:1px;">Click to shoot · Don't let them reach Mangle!</p>
+  <button class="play-btn" id="startBtn">▶ PLAY!</button>
+</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const W = 480, H = 480;
+
+// --- Audio ---
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+function playShoot() {
+  try {
+    ensureAudio();
+    const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1400, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(200, audioCtx.currentTime + 0.18);
+    gain.gain.setValueAtTime(0.35, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.22);
+    osc.start(); osc.stop(audioCtx.currentTime + 0.25);
+  } catch(e){}
+}
+function playHit() {
+  try {
+    ensureAudio();
+    const buf = audioCtx.createBuffer(1, audioCtx.sampleRate*0.12, audioCtx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.exp(-i/d.length*10);
+    const src = audioCtx.createBufferSource(), gain = audioCtx.createGain();
+    src.buffer = buf; gain.gain.value = 0.4;
+    src.connect(gain); gain.connect(audioCtx.destination); src.start();
+  } catch(e){}
+}
+
+// --- State ---
+let score=0, lives=3, level=1, running=false;
+let enemies=[], bullets=[], particles=[];
+let frameCount=0;
+const player = { x: W/2, y: H/2 };
+
+document.getElementById('startBtn').addEventListener('click', ()=>{ ensureAudio(); startGame(); });
+
+function startGame() {
+  score=0; lives=3; level=1; enemies=[]; bullets=[]; particles=[]; frameCount=0;
+  player.x = W/2; player.y = H/2;
+  document.getElementById('overlay').style.display='none';
+  running=true; requestAnimationFrame(loop);
+}
+
+function spawnEnemy() {
+  const side = Math.floor(Math.random() * 4); // 0=left,1=right,2=top,3=bottom
+  let x, y, vx, vy;
+  const spd = 0.7 + level*0.25 + Math.random()*0.4;
+  if (side === 0) { x=-50; y=60+Math.random()*(H-120); vx=spd; vy=0; }
+  else if (side === 1) { x=W+50; y=60+Math.random()*(H-120); vx=-spd; vy=0; }
+  else if (side === 2) { x=60+Math.random()*(W-120); y=-50; vx=0; vy=spd; }
+  else { x=60+Math.random()*(W-120); y=H+50; vx=0; vy=-spd; }
+  // Angle slightly toward centre
+  const toCX = W/2 - x, toCY = H/2 - y;
+  const len = Math.sqrt(toCX*toCX+toCY*toCY);
+  vx = (toCX/len)*spd; vy = (toCY/len)*spd;
+  const fromLeft = side === 0 || (side >= 2 && x < W/2);
+  enemies.push({ x, y, vx, vy, hit:false, alpha:1, wobble:Math.random()*Math.PI*2, fromLeft });
+}
+
+function shoot(mx, my) {
+  if (!running) return;
+  // fire from Mangle's head position (upper body centre)
+  const ox = player.x + 12, oy = player.y - 18;
+  const angle = Math.atan2(my - oy, mx - ox);
+  const spd = 13;
+  bullets.push({ x:ox, y:oy, vx:Math.cos(angle)*spd, vy:Math.sin(angle)*spd });
+  playShoot();
+}
+
+canvas.addEventListener('click', e=>{
+  const r = canvas.getBoundingClientRect();
+  shoot((e.clientX-r.left)*(W/r.width), (e.clientY-r.top)*(H/r.height));
+});
+
+// Mangle stays in centre - no mousemove needed
+
+function spawnParticles(x, y) {
+  const cols = ['#cc88ff','#ffffff','#8844cc','#ffaaff','#ff88cc','#aaaaff'];
+  for (let i=0;i<20;i++){
+    const a=Math.random()*Math.PI*2, s=2+Math.random()*6;
+    particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,color:cols[Math.floor(Math.random()*cols.length)],r:2+Math.random()*4});
+  }
+}
+
+// ---- DRAW STITCHWRAITH ----
+function drawStitwraith(x, y, alpha, wobble, fromLeft) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(x, y);
+  if (!fromLeft) ctx.scale(-1, 1); // mirror when coming from right
+
+  const sw = Math.sin(wobble) * 0.08;
+  ctx.rotate(sw);
+
+  // Flowing dark cloak
+  ctx.fillStyle = '#1a1a2e';
+  ctx.beginPath();
+  ctx.moveTo(-24, -30);
+  ctx.quadraticCurveTo(-32, 0, -28, 30);
+  ctx.quadraticCurveTo(-10, 44, 0, 46);
+  ctx.quadraticCurveTo(10, 44, 28, 30);
+  ctx.quadraticCurveTo(32, 0, 24, -30);
+  ctx.closePath();
+  ctx.fill();
+
+  // Cloak shading
+  ctx.fillStyle = '#11112a';
+  ctx.beginPath();
+  ctx.moveTo(0, -30);
+  ctx.quadraticCurveTo(8, 0, 6, 46);
+  ctx.quadraticCurveTo(-6, 46, -4, 0);
+  ctx.closePath();
+  ctx.fill();
+
+  // Hood
+  ctx.fillStyle = '#1a1a2e';
+  ctx.beginPath();
+  ctx.arc(0, -30, 22, Math.PI, 0);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(0, -30, 22, 10, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // Hood shadow inside
+  ctx.fillStyle = '#0a0a18';
+  ctx.beginPath();
+  ctx.ellipse(0, -28, 16, 8, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // Endoskeleton spine visible through cloak opening
+  ctx.strokeStyle = '#5566aa';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(0, -10);
+  ctx.lineTo(0, 28);
+  ctx.stroke();
+  // Spine discs
+  ctx.fillStyle = '#6677bb';
+  for (let sy = -6; sy <= 24; sy += 8) {
+    ctx.beginPath();
+    ctx.ellipse(0, sy, 5, 3, 0, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  // Arms reaching out
+  // Left arm (towards centre of screen = reaching forward)
+  ctx.strokeStyle = '#445599'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-16, -8); ctx.quadraticCurveTo(-30, 0, -36, 8); ctx.stroke();
+  // Claw hand left
+  ctx.strokeStyle = '#6677cc'; ctx.lineWidth = 2;
+  for (let f=0;f<4;f++){
+    const angle = -0.3 + f*0.22;
+    ctx.beginPath();
+    ctx.moveTo(-36, 8);
+    ctx.lineTo(-36 + Math.cos(angle)*12, 8 + Math.sin(angle)*12);
+    ctx.stroke();
+  }
+
+  // Right arm up
+  ctx.strokeStyle = '#445599'; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(16, -8); ctx.quadraticCurveTo(26, -20, 30, -28); ctx.stroke();
+  ctx.strokeStyle = '#6677cc'; ctx.lineWidth = 2;
+  for (let f=0;f<4;f++){
+    const angle = -1.8 + f*0.22;
+    ctx.beginPath();
+    ctx.moveTo(30, -28);
+    ctx.lineTo(30 + Math.cos(angle)*10, -28 + Math.sin(angle)*10);
+    ctx.stroke();
+  }
+
+  // WHITE MASK FACE
+  ctx.fillStyle = '#e8e8e8';
+  ctx.beginPath();
+  ctx.ellipse(0, -32, 13, 14, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // Crudely drawn face features (as described - rough drawn look)
+  // One normal eye, one black eye
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.ellipse(-5, -34, 4, 4, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#000'; // black eye (the damaged one)
+  ctx.beginPath(); ctx.ellipse(5, -34, 4, 4, 0, 0, Math.PI*2); ctx.fill();
+  // Normal eye pupil
+  ctx.fillStyle = '#222';
+  ctx.beginPath(); ctx.arc(-5, -33, 2, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(-4, -34, 0.8, 0, Math.PI*2); ctx.fill();
+
+  // Jagged teeth smile
+  ctx.fillStyle = '#ccc';
+  ctx.beginPath(); ctx.ellipse(0, -24, 8, 5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  for (let t=-2;t<=2;t++){
+    ctx.beginPath();
+    ctx.moveTo(t*3-1, -27); ctx.lineTo(t*3, -22); ctx.lineTo(t*3+1, -27);
+    ctx.closePath(); ctx.fill();
+  }
+
+  // Orange glow chest piece
+  ctx.fillStyle = '#ff6600';
+  ctx.shadowColor = '#ff6600'; ctx.shadowBlur = 10;
+  ctx.beginPath(); ctx.ellipse(0, 0, 6, 8, 0, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  ctx.restore();
+}
+
+// ---- DRAW MANGLE ----
+function drawMangle() {
+  const px = player.x, py = player.y;
+  ctx.save();
+  ctx.translate(px, py);
+
+  // === BODY (broken endoskeleton torso) ===
+  ctx.strokeStyle = '#aaaaaa'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+  // Spine
+  ctx.beginPath(); ctx.moveTo(0, -20); ctx.lineTo(2, 10); ctx.stroke();
+  // Ribs
+  ctx.lineWidth = 2;
+  for (let r=0;r<3;r++){
+    const ry = -14 + r*8;
+    ctx.beginPath(); ctx.moveTo(0,ry); ctx.quadraticCurveTo(-14,ry-2,-16,ry+4); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,ry); ctx.quadraticCurveTo(14,ry-2,16,ry+4); ctx.stroke();
+  }
+
+  // === LEGS (stumpy endoskeleton) ===
+  ctx.strokeStyle = '#999'; ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.moveTo(-4,10); ctx.lineTo(-8,26); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(4,10); ctx.lineTo(8,26); ctx.stroke();
+  // Feet
+  ctx.fillStyle = '#e8d0d0';
+  ctx.beginPath(); ctx.ellipse(-8,28,7,5,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(8,28,7,5,0,0,Math.PI*2); ctx.fill();
+  // Toe nails
+  ctx.fillStyle = '#cc4444';
+  for (let t=-1;t<=1;t++){
+    ctx.beginPath(); ctx.ellipse(-8+t*4,32,2,2,0,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(8+t*4,32,2,2,0,0,Math.PI*2); ctx.fill();
+  }
+
+  // === LEFT ARM (dangling, broken) ===
+  ctx.strokeStyle = '#aaa'; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(-12,-10); ctx.quadraticCurveTo(-24,-4,-22,10); ctx.stroke();
+  ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(-22,10); ctx.lineTo(-28,16); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-22,10); ctx.lineTo(-24,18); ctx.stroke();
+
+  // === RIGHT ARM (raised, aiming) ===
+  ctx.strokeStyle = '#bbb'; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(12,-10); ctx.quadraticCurveTo(22,-22,24,-34); ctx.stroke();
+  // Hand glow at tip
+  ctx.shadowColor = '#ffaacc'; ctx.shadowBlur = 12;
+  ctx.fillStyle = '#ffaacc';
+  ctx.beginPath(); ctx.arc(24,-36,4,0,Math.PI*2); ctx.fill();
+  ctx.shadowBlur=0;
+
+  // === WIRES hanging off body ===
+  ctx.strokeStyle = '#333'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(-6,-5); ctx.quadraticCurveTo(-14,4,-10,18); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(4,-2); ctx.quadraticCurveTo(12,8,8,20); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0,0); ctx.quadraticCurveTo(-8,12,-6,22); ctx.stroke();
+
+  // === NECK ===
+  ctx.strokeStyle = '#999'; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(0,-20); ctx.lineTo(-2,-36); ctx.stroke();
+
+  // === SECOND HEAD (small dark head on shoulder - the extra head Mangle has) ===
+  ctx.save();
+  ctx.translate(-18, -28);
+  ctx.rotate(0.4);
+  // Small dark head
+  ctx.fillStyle = '#222';
+  ctx.beginPath(); ctx.ellipse(0,0,9,10,0,0,Math.PI*2); ctx.fill();
+  // Small eye
+  ctx.fillStyle = '#fff'; ctx.shadowColor='#fff'; ctx.shadowBlur=6;
+  ctx.beginPath(); ctx.arc(3,-2,3,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#000'; ctx.shadowBlur=0;
+  ctx.beginPath(); ctx.arc(3,-2,1.5,0,Math.PI*2); ctx.fill();
+  // Teeth
+  ctx.fillStyle='#ddd';
+  ctx.beginPath(); ctx.arc(0,4,5,0,Math.PI); ctx.fill();
+  ctx.fillStyle='#fff';
+  for(let t=-1;t<=1;t++){
+    ctx.beginPath(); ctx.moveTo(t*3-1,2); ctx.lineTo(t*3,6); ctx.lineTo(t*3+1,2); ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+
+  // === MAIN HEAD (white/cream fox head) ===
+  // Head shape
+  ctx.fillStyle = '#e8ddd0';
+  ctx.beginPath(); ctx.ellipse(0,-48,18,20,0,0,Math.PI*2); ctx.fill();
+
+  // Pink ear (left - floppy)
+  ctx.fillStyle = '#e8a0a0';
+  ctx.beginPath(); ctx.ellipse(-14,-64,8,10,-0.3,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#ffbbbb';
+  ctx.beginPath(); ctx.ellipse(-14,-64,4,6,-0.3,0,Math.PI*2); ctx.fill();
+
+  // Snout area
+  ctx.fillStyle = '#ddd0c0';
+  ctx.beginPath(); ctx.ellipse(4,-46,10,8,0.1,0,Math.PI*2); ctx.fill();
+
+  // Red/pink nose
+  ctx.fillStyle = '#dd4466';
+  ctx.beginPath(); ctx.ellipse(6,-44,4,3,0,0,Math.PI*2); ctx.fill();
+
+  // Main eye (yellow with pupil - exposed endoskeleton eye)
+  ctx.fillStyle = '#ffdd00'; ctx.shadowColor='#ffdd00'; ctx.shadowBlur=8;
+  ctx.beginPath(); ctx.arc(-6,-50,6,0,Math.PI*2); ctx.fill();
+  ctx.shadowBlur=0;
+  ctx.fillStyle='#333';
+  ctx.beginPath(); ctx.arc(-6,-50,3,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#fff';
+  ctx.beginPath(); ctx.arc(-4,-51,1.2,0,Math.PI*2); ctx.fill();
+
+  // Teeth (big mangle grin)
+  ctx.fillStyle = '#111';
+  ctx.beginPath(); ctx.ellipse(4,-38,10,7,0.1,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#f0f0f0';
+  for(let t=0;t<5;t++){
+    const tx = -6 + t*3.5;
+    ctx.beginPath(); ctx.moveTo(tx,-42); ctx.lineTo(tx+1.5,-36); ctx.lineTo(tx+3,-42); ctx.closePath(); ctx.fill();
+  }
+
+  // Wires/tubes from head
+  ctx.strokeStyle='#555'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(8,-56); ctx.quadraticCurveTo(18,-52,20,-44); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(10,-50); ctx.quadraticCurveTo(22,-46,22,-36); ctx.stroke();
+
+  ctx.restore();
+}
+
+// ---- BACKGROUND ----
+function drawBackground() {
+  // Dark room
+  const bg = ctx.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0,'#06060f');
+  bg.addColorStop(1,'#0f0818');
+  ctx.fillStyle = bg; ctx.fillRect(0,0,W,H);
+
+  // Floor
+  ctx.fillStyle = '#1a1020';
+  ctx.fillRect(0, H-50, W, 50);
+  ctx.strokeStyle = '#2a1a30'; ctx.lineWidth = 1;
+  for(let x=0;x<W;x+=40){
+    ctx.beginPath(); ctx.moveTo(x,H-50); ctx.lineTo(x,H); ctx.stroke();
+  }
+
+  // Eerie purple fog at sides
+  const fogL = ctx.createLinearGradient(0,0,100,0);
+  fogL.addColorStop(0,'rgba(80,20,120,0.3)'); fogL.addColorStop(1,'rgba(80,20,120,0)');
+  ctx.fillStyle = fogL; ctx.fillRect(0,0,100,H);
+  const fogR = ctx.createLinearGradient(W,0,W-100,0);
+  fogR.addColorStop(0,'rgba(80,20,120,0.3)'); fogR.addColorStop(1,'rgba(80,20,120,0)');
+  ctx.fillStyle = fogR; ctx.fillRect(W-100,0,100,H);
+}
+
+function loop() {
+  if (!running) return;
+  frameCount++;
+
+  const spawnRate = Math.max(90 - level*8, 30);
+  if (frameCount % spawnRate === 0) spawnEnemy();
+  if (score>0 && score%150===0 && frameCount%2===0) level = Math.min(Math.floor(score/150)+1, 10);
+
+  drawBackground();
+
+  // Enemies
+  for(let i=enemies.length-1;i>=0;i--){
+    const e = enemies[i];
+    e.x += e.vx;
+    e.y += e.vy;
+    e.wobble += 0.05;
+    if(e.hit){ e.alpha -= 0.07; if(e.alpha<=0){enemies.splice(i,1);continue;} }
+    else if(Math.abs(e.x - player.x) < 35 && Math.abs(e.y - player.y) < 35){
+      lives--; enemies.splice(i,1);
+      if(lives<=0){gameOver();return;} continue;
+    }
+    drawStitwraith(e.x, e.y, e.alpha, e.wobble, e.fromLeft);
+  }
+
+  // Bullets
+  for(let i=bullets.length-1;i>=0;i--){
+    const b=bullets[i];
+    b.x+=b.vx; b.y+=b.vy;
+    if(b.x<0||b.x>W||b.y<0||b.y>H){bullets.splice(i,1);continue;}
+    let hit=false;
+    for(let e of enemies){
+      if(!e.hit && Math.abs(b.x-e.x)<30 && Math.abs(b.y-e.y)<35){
+        e.hit=true; spawnParticles(e.x,e.y); playHit(); score+=10; hit=true; break;
+      }
+    }
+    if(hit){bullets.splice(i,1);continue;}
+    ctx.save();
+    ctx.shadowColor='#ffaacc'; ctx.shadowBlur=14;
+    ctx.fillStyle='#ffaaff';
+    ctx.beginPath(); ctx.arc(b.x,b.y,5,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+
+  // Particles
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];
+    p.x+=p.vx; p.y+=p.vy; p.vy+=0.15; p.life-=0.03;
+    if(p.life<=0){particles.splice(i,1);continue;}
+    ctx.globalAlpha=p.life; ctx.fillStyle=p.color;
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.r*p.life,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha=1;
+  }
+
+  drawMangle();
+
+  document.getElementById('score-display').textContent='SCORE: '+score;
+  document.getElementById('lives-display').textContent='❤️'.repeat(Math.max(0,lives));
+  document.getElementById('level-display').textContent='LEVEL: '+level;
+
+  requestAnimationFrame(loop);
+}
+
+function gameOver() {
+  running=false;
+  const ov=document.getElementById('overlay');
+  ov.style.display='flex';
+  ov.innerHTML=`
+    <h2 style="font-family:'Creepster',cursive;font-size:2.8rem;color:#cc88ff;text-shadow:0 0 24px #8844cc;margin-bottom:10px;">GAME OVER!</h2>
+    <p style="color:#ffd700;font-size:1.4rem;font-family:'Bangers',cursive;letter-spacing:2px;">SCORE: ${score}</p>
+    <p style="color:#888;font-family:'Bangers',cursive;">The Stitchwraiths got Mangle...</p>
+    <button class="play-btn" onclick="ensureAudio();startGame()">▶ TRY AGAIN!</button>
+  `;
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nightmare Shooter!</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Creepster&family=Bangers&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #050508;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Bangers', cursive;
+    overflow: hidden;
+    user-select: none;
+  }
+  #title {
+    color: #ff4400;
+    font-size: 2rem;
+    letter-spacing: 4px;
+    text-shadow: 0 0 20px #ff2200, 0 0 40px #ff2200;
+    margin-bottom: 8px;
+  }
+  #hud {
+    display: flex;
+    gap: 30px;
+    margin-bottom: 8px;
+    font-size: 1.3rem;
+  }
+  #score-display { color: #ffd700; text-shadow: 0 0 10px #ffd700; }
+  #lives-display { color: #ff4444; text-shadow: 0 0 10px #ff4444; }
+  #level-display { color: #ff6600; text-shadow: 0 0 10px #ff6600; }
+  canvas {
+    border: 2px solid #ff2200;
+    box-shadow: 0 0 30px #ff220055;
+    border-radius: 4px;
+    cursor: crosshair;
+    background: #08060a;
+    max-width: 100%;
+  }
+  #overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.9);
+    z-index: 10;
+  }
+  #overlay h2 {
+    font-family: 'Creepster', cursive;
+    font-size: 3rem;
+    color: #ff4400;
+    text-shadow: 0 0 30px #ff2200;
+    margin-bottom: 12px;
+  }
+  #overlay p {
+    font-family: 'Bangers', cursive;
+    font-size: 1.1rem;
+    color: #888;
+    margin-bottom: 6px;
+    letter-spacing: 2px;
+  }
+  .play-btn {
+    margin-top: 20px;
+    padding: 14px 40px;
+    font-family: 'Bangers', cursive;
+    font-size: 1.8rem;
+    letter-spacing: 3px;
+    background: linear-gradient(135deg, #7a0000, #cc2200);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    box-shadow: 0 0 20px #ff220088;
+    transition: transform 0.1s;
+  }
+  .play-btn:hover { transform: scale(1.07); }
+</style>
+</head>
+<body>
+
+<div id="title">☠️ NIGHTMARE SHOOTER ☠️</div>
+<div id="hud">
+  <span id="score-display">SCORE: 0</span>
+  <span id="lives-display">❤️❤️❤️</span>
+  <span id="level-display">LEVEL: 1</span>
+</div>
+<canvas id="game" width="480" height="480"></canvas>
+
+<div id="overlay">
+  <h2>NIGHTMARE MODE</h2>
+  <p>Five Nights at Freddy's: Help Wanted</p>
+  <p style="color:#ff6600;font-size:1rem;margin-top:8px;">Shoot the Nightmares before they get you!</p>
+  <button class="play-btn" id="startBtn">▶ PLAY!</button>
+  <p style="margin-top:12px;font-size:0.85rem;color:#555;">Move mouse to aim · Click to shoot</p>
+</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+// --- Audio ---
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function playShoot() {
+  try {
+    ensureAudio();
+    // Sharp zap sound
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + 0.15);
+    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.18);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.2);
+  } catch(e) {}
+}
+
+function playScream() {
+  try {
+    ensureAudio();
+    // Hit crunch
+    const bufferSize = audioCtx.sampleRate * 0.15;
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * (1 - i/bufferSize);
+    const src = audioCtx.createBufferSource();
+    src.buffer = buffer;
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+    src.connect(gain); gain.connect(audioCtx.destination);
+    src.start();
+  } catch(e) {}
+}
+
+// --- State ---
+let score = 0, lives = 3, level = 1, running = false;
+let blocks = [], bullets = [], particles = [], starField = [], eyeGlows = [];
+let frameCount = 0;
+
+// Spooky background dots (like eyes in the dark)
+for (let i = 0; i < 12; i++) {
+  eyeGlows.push({
+    x: Math.random()*480, y: Math.random()*480,
+    pulse: Math.random()*Math.PI*2,
+    r: 1 + Math.random()*2
+  });
+}
+
+const player = { x: 240, y: 440 };
+
+document.getElementById('startBtn').addEventListener('click', () => {
+  ensureAudio(); startGame();
+});
+
+function startGame() {
+  score = 0; lives = 3; level = 1;
+  blocks = []; bullets = []; particles = [];
+  frameCount = 0;
+  document.getElementById('overlay').style.display = 'none';
+  running = true;
+  requestAnimationFrame(loop);
+}
+
+// 3 nightmare variants
+const VARIANTS = ['freddy','bonnie','foxy'];
+
+function spawnBlock() {
+  const x = 80 + Math.random() * (480 - 160);
+  const speed = 0.7 + level * 0.3 + Math.random() * 0.5;
+  const variant = VARIANTS[Math.floor(Math.random() * VARIANTS.length)];
+  blocks.push({ x, y: -50, w: 56, h: 56, speed, hit: false, alpha: 1, variant, wobble: Math.random()*Math.PI*2 });
+}
+
+function shoot(mx, my) {
+  if (!running) return;
+  const angle = Math.atan2(my - (player.y - 60), mx - (player.x + 18));
+  const spd = 13;
+  const handX = player.x + 18, handY = player.y - 60;
+  bullets.push({ x: handX, y: handY, vx: Math.cos(angle)*spd, vy: Math.sin(angle)*spd });
+  playShoot();
+}
+
+canvas.addEventListener('click', (e) => {
+  const r = canvas.getBoundingClientRect();
+  shoot((e.clientX - r.left)*(480/r.width), (e.clientY - r.top)*(480/r.height));
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  const r = canvas.getBoundingClientRect();
+  player.x = Math.max(30, Math.min(450, (e.clientX - r.left)*(480/r.width)));
+});
+
+function spawnParticles(x, y) {
+  const colors = ['#ff2200','#ff6600','#ffaa00','#ffffff','#8B0000'];
+  for (let i = 0; i < 22; i++) {
+    const a = Math.random()*Math.PI*2, spd = 2+Math.random()*6;
+    particles.push({ x, y, vx: Math.cos(a)*spd, vy: Math.sin(a)*spd, life: 1, color: colors[Math.floor(Math.random()*colors.length)], r: 2+Math.random()*4 });
+  }
+}
+
+// Draw nightmare bear block
+function drawNightmareBlock(x, y, w, h, alpha, variant, wobble) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(x, y);
+  const sway = Math.sin(wobble) * 2;
+  ctx.rotate(sway * 0.03);
+
+  // Dark block bg
+  const grad = ctx.createRadialGradient(0, 0, 2, 0, 0, w*0.7);
+  grad.addColorStop(0, '#1a0a0a');
+  grad.addColorStop(1, '#050202');
+  ctx.fillStyle = grad;
+  ctx.strokeStyle = '#8B0000';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.roundRect(-w/2,-h/2,w,h,8); ctx.fill(); ctx.stroke();
+
+  // Head shape (rounded rectangle, dark brown)
+  ctx.fillStyle = '#2a1a0a';
+  ctx.beginPath(); ctx.ellipse(0, -2, 18, 20, 0, 0, Math.PI*2); ctx.fill();
+
+  // Ears
+  ctx.fillStyle = '#1a0e05';
+  ctx.beginPath(); ctx.ellipse(-14, -16, 6, 6, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(14, -16, 6, 6, 0, 0, Math.PI*2); ctx.fill();
+  // Inner ear
+  ctx.fillStyle = '#3a1a08';
+  ctx.beginPath(); ctx.ellipse(-14, -16, 3, 3, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(14, -16, 3, 3, 0, 0, Math.PI*2); ctx.fill();
+
+  // Glowing white eyes
+  ctx.shadowColor = '#ffffff';
+  ctx.shadowBlur = 12;
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath(); ctx.ellipse(-7, -6, 4.5, 5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(7, -6, 4.5, 5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Dark pupils
+  ctx.fillStyle = '#000';
+  ctx.beginPath(); ctx.ellipse(-7, -5, 2.5, 3, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(7, -5, 2.5, 3, 0, 0, Math.PI*2); ctx.fill();
+
+  // TEETH - the signature nightmare look
+  const teethY = 8;
+  ctx.fillStyle = '#111';
+  ctx.beginPath();
+  ctx.ellipse(0, teethY+2, 15, 10, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // Upper teeth jagged
+  ctx.fillStyle = '#f0f0f0';
+  ctx.shadowColor = '#ffffff';
+  ctx.shadowBlur = 4;
+  const teethCount = 5;
+  const teethW = 4.5;
+  const startX = -10;
+  for (let t = 0; t < teethCount; t++) {
+    const tx = startX + t * (teethW + 1.2);
+    ctx.beginPath();
+    ctx.moveTo(tx, teethY - 2);
+    ctx.lineTo(tx + teethW/2, teethY + 6);
+    ctx.lineTo(tx + teethW, teethY - 2);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.shadowBlur = 0;
+
+  // Lower teeth (shorter)
+  const lTeethCount = 4;
+  const lTeethW = 3.5;
+  const lStartX = -7;
+  for (let t = 0; t < lTeethCount; t++) {
+    const tx = lStartX + t * (lTeethW + 1.5);
+    ctx.beginPath();
+    ctx.moveTo(tx, teethY + 7);
+    ctx.lineTo(tx + lTeethW/2, teethY + 2);
+    ctx.lineTo(tx + lTeethW, teethY + 7);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Variant details
+  if (variant === 'bonnie') {
+    // Bunny ears instead of bear ears
+    ctx.fillStyle = '#1a0e05';
+    ctx.beginPath(); ctx.ellipse(-13, -22, 4, 10, -0.3, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(13, -22, 4, 10, 0.3, 0, Math.PI*2); ctx.fill();
+  } else if (variant === 'foxy') {
+    // Pointy fox ears + red tint
+    ctx.fillStyle = '#3a0a00';
+    ctx.beginPath(); ctx.moveTo(-18,-12); ctx.lineTo(-10,-26); ctx.lineTo(-5,-12); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(18,-12); ctx.lineTo(10,-26); ctx.lineTo(5,-12); ctx.closePath(); ctx.fill();
+    // eyepatch
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.beginPath(); ctx.ellipse(-7,-6,6,5,0,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#5a2a00'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.ellipse(-7,-6,6,5,0,0,Math.PI*2); ctx.stroke();
+  }
+
+  // Name tag
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(-w/2+2, h/2-14, w-4, 12);
+  ctx.fillStyle = '#ff4400';
+  ctx.font = 'bold 7px monospace';
+  ctx.textAlign = 'center';
+  const names = { freddy: 'NIGHTMARE', bonnie: 'NM. BONNIE', foxy: 'NM. FOXY' };
+  ctx.fillText(names[variant] || 'NIGHTMARE', 0, h/2-5);
+
+  ctx.restore();
+}
+
+function drawPlayer() {
+  const px = player.x, py = player.y;
+  ctx.save();
+  ctx.translate(px, py);
+
+  // Body
+  ctx.fillStyle = '#1a0e05';
+  ctx.beginPath(); ctx.roundRect(-18, -30, 36, 38, 6); ctx.fill();
+
+  // Tummy patch
+  ctx.fillStyle = '#2a1a0a';
+  ctx.beginPath(); ctx.ellipse(0, -10, 10, 14, 0, 0, Math.PI*2); ctx.fill();
+
+  // Hat brim
+  ctx.fillStyle = '#0a0603';
+  ctx.beginPath(); ctx.roundRect(-20, -62, 40, 6, 2); ctx.fill();
+  // Hat top
+  ctx.beginPath(); ctx.roundRect(-13, -82, 26, 24, 3); ctx.fill();
+  // Hat band
+  ctx.fillStyle = '#3a0000';
+  ctx.beginPath(); ctx.roundRect(-13, -64, 26, 5, 1); ctx.fill();
+
+  // Head
+  ctx.fillStyle = '#2a1a0a';
+  ctx.beginPath(); ctx.ellipse(0, -48, 20, 22, 0, 0, Math.PI*2); ctx.fill();
+
+  // Ears
+  ctx.fillStyle = '#1a0e05';
+  ctx.beginPath(); ctx.ellipse(-17, -62, 7, 7, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(17, -62, 7, 7, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#3a1a08';
+  ctx.beginPath(); ctx.ellipse(-17, -62, 3.5, 3.5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(17, -62, 3.5, 3.5, 0, 0, Math.PI*2); ctx.fill();
+
+  // Glowing eyes
+  ctx.shadowColor = '#ffffff'; ctx.shadowBlur = 14;
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath(); ctx.ellipse(-8, -50, 5, 6, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(8, -50, 5, 6, 0, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#000';
+  ctx.beginPath(); ctx.ellipse(-8, -49, 2.5, 3, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(8, -49, 2.5, 3, 0, 0, Math.PI*2); ctx.fill();
+
+  // Snout
+  ctx.fillStyle = '#3a2010';
+  ctx.beginPath(); ctx.ellipse(0, -40, 9, 7, 0, 0, Math.PI*2); ctx.fill();
+
+  // Teeth grin
+  ctx.fillStyle = '#0a0604';
+  ctx.beginPath(); ctx.ellipse(0, -36, 10, 6, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#eeeeee';
+  ctx.shadowColor = '#fff'; ctx.shadowBlur = 4;
+  for (let t = -2; t <= 2; t++) {
+    ctx.beginPath();
+    ctx.moveTo(t*4 - 1.5, -40);
+    ctx.lineTo(t*4, -33);
+    ctx.lineTo(t*4 + 1.5, -40);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.shadowBlur = 0;
+
+  // Left arm down (idle)
+  ctx.fillStyle = '#1a0e05';
+  ctx.beginPath(); ctx.roundRect(-28, -25, 10, 22, 5); ctx.fill();
+
+  // Right arm raised — aiming up
+  ctx.save();
+  ctx.translate(22, -20);
+  ctx.rotate(-1.1); // raised
+  ctx.fillStyle = '#1a0e05';
+  ctx.beginPath(); ctx.roundRect(-5, -20, 10, 22, 5); ctx.fill();
+  // fist/hand
+  ctx.beginPath(); ctx.ellipse(0, -22, 6, 6, 0, 0, Math.PI*2); ctx.fill();
+  // finger gun barrel glow
+  ctx.shadowColor = '#ffaa00'; ctx.shadowBlur = 10;
+  ctx.fillStyle = '#ffaa00';
+  ctx.beginPath(); ctx.ellipse(0, -27, 2.5, 2.5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.restore();
+
+  // Legs
+  ctx.fillStyle = '#1a0e05';
+  ctx.beginPath(); ctx.roundRect(-16, 6, 13, 16, 4); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(3, 6, 13, 16, 4); ctx.fill();
+
+  // Feet
+  ctx.fillStyle = '#0f0804';
+  ctx.beginPath(); ctx.ellipse(-10, 22, 9, 5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(10, 22, 9, 5, 0, 0, Math.PI*2); ctx.fill();
+
+  ctx.restore();
+}
+
+function loop() {
+  if (!running) return;
+  frameCount++;
+
+  const spawnRate = Math.max(60 - level*6, 22);
+  if (frameCount % spawnRate === 0) spawnBlock();
+  if (score > 0 && score % 150 === 0 && frameCount % 2 === 0) level = Math.min(Math.floor(score/150)+1, 10);
+
+  // Background
+  ctx.fillStyle = '#08060a';
+  ctx.fillRect(0, 0, 480, 480);
+
+  // Creepy eye glows in bg
+  for (let e of eyeGlows) {
+    e.pulse += 0.04;
+    const a = 0.05 + 0.08*Math.abs(Math.sin(e.pulse));
+    ctx.globalAlpha = a;
+    ctx.fillStyle = '#ff2200';
+    ctx.shadowColor = '#ff2200'; ctx.shadowBlur = 8;
+    ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(e.x + 8, e.y, e.r, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+  ctx.globalAlpha = 1;
+
+  // Faint floor line
+  ctx.strokeStyle = 'rgba(139,0,0,0.15)';
+  ctx.lineWidth = 1;
+  for (let yy = 80; yy < 480; yy += 60) {
+    ctx.beginPath(); ctx.moveTo(0,yy); ctx.lineTo(480,yy); ctx.stroke();
+  }
+
+  // Blocks
+  for (let i = blocks.length-1; i >= 0; i--) {
+    const b = blocks[i];
+    b.y += b.speed;
+    b.wobble += 0.04;
+    if (b.hit) { b.alpha -= 0.07; if (b.alpha <= 0) { blocks.splice(i,1); continue; } }
+    else if (b.y > 510) { lives--; blocks.splice(i,1); if (lives <= 0) { gameOver(); return; } continue; }
+    drawNightmareBlock(b.x, b.y, b.w, b.h, b.alpha, b.variant, b.wobble);
+  }
+
+  // Bullets
+  for (let i = bullets.length-1; i >= 0; i--) {
+    const bul = bullets[i];
+    bul.x += bul.vx; bul.y += bul.vy;
+    if (bul.x<0||bul.x>480||bul.y<0||bul.y>480) { bullets.splice(i,1); continue; }
+    let hit = false;
+    for (let bl of blocks) {
+      if (!bl.hit && Math.abs(bul.x-bl.x)<bl.w/2 && Math.abs(bul.y-bl.y)<bl.h/2) {
+        bl.hit = true; spawnParticles(bl.x,bl.y); playScream(); score += 10; hit = true; break;
+      }
+    }
+    if (hit) { bullets.splice(i,1); continue; }
+    ctx.save();
+    ctx.shadowColor='#ff6600'; ctx.shadowBlur=14;
+    ctx.fillStyle='#ffaa00';
+    ctx.beginPath(); ctx.arc(bul.x,bul.y,5,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+
+  // Particles
+  for (let i = particles.length-1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.life -= 0.03;
+    if (p.life<=0) { particles.splice(i,1); continue; }
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.r*p.life,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  drawPlayer();
+
+  // Danger flash at bottom
+  if (blocks.some(b => b.y > 380 && !b.hit)) {
+    ctx.globalAlpha = 0.06 + 0.05*Math.sin(frameCount*0.3);
+    ctx.fillStyle = '#ff0000';
+    ctx.fillRect(0, 0, 480, 480);
+    ctx.globalAlpha = 1;
+  }
+
+  document.getElementById('score-display').textContent = 'SCORE: '+score;
+  document.getElementById('lives-display').textContent = '❤️'.repeat(Math.max(0,lives));
+  document.getElementById('level-display').textContent = 'LEVEL: '+level;
+
+  requestAnimationFrame(loop);
+}
+
+function gameOver() {
+  running = false;
+  const ov = document.getElementById('overlay');
+  ov.style.display = 'flex';
+  ov.innerHTML = `
+    <h2 style="font-family:'Creepster',cursive;font-size:3rem;color:#ff4400;text-shadow:0 0 30px #ff2200;margin-bottom:12px;">GAME OVER!</h2>
+    <p style="color:#ffd700;font-size:1.5rem;font-family:'Bangers',cursive;">SCORE: ${score}</p>
+    <p style="color:#888;font-family:'Bangers',cursive;">The Nightmares got you...</p>
+    <button class="play-btn" onclick="ensureAudio();startGame()">▶ TRY AGAIN!</button>
+  `;
+}
+</script>
+</body>
+</html>

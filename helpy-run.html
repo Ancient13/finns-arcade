@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Helpy Run!</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#0a0a1a; overflow:hidden; font-family:'Arial Black',sans-serif; touch-action:none; user-select:none; }
+  canvas { display:block; margin:0 auto; }
+  #ui {
+    position:fixed; top:8px; left:0; right:0;
+    display:flex; justify-content:center; gap:16px;
+    pointer-events:none; z-index:10;
+  }
+  .ui-box {
+    background:rgba(0,0,0,0.7); border:2px solid #cc88ff;
+    border-radius:8px; padding:4px 14px;
+    color:#ffd700; font-size:1.1rem; font-family:'Arial Black',sans-serif;
+  }
+  #msg {
+    position:fixed; top:40%; left:50%; transform:translate(-50%,-50%);
+    color:#ffd700; font-size:1.8rem; font-weight:900;
+    text-shadow:0 0 20px #ff8800; white-space:pre-line;
+    pointer-events:none; opacity:0; transition:opacity 0.3s;
+    z-index:20; text-align:center;
+    background:rgba(0,0,0,0.6); padding:12px 24px; border-radius:14px;
+  }
+  /* Joystick */
+  #joystick-zone {
+    position:fixed; bottom:28px; left:28px;
+    width:120px; height:120px; z-index:15;
+  }
+  #joystick-base {
+    width:120px; height:120px; border-radius:50%;
+    background:rgba(255,255,255,0.1); border:2px solid rgba(200,136,255,0.5);
+    position:absolute;
+  }
+  #joystick-knob {
+    width:48px; height:48px; border-radius:50%;
+    background:radial-gradient(circle at 35% 35%, #ddaaff, #8844cc);
+    border:2px solid #cc88ff; position:absolute; top:36px; left:36px;
+    box-shadow:0 0 12px #cc88ff88;
+  }
+  #overlay {
+    position:fixed; inset:0;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:rgba(0,0,0,0.93); z-index:30;
+  }
+  #overlay h1 { color:#ddaaff; font-size:2.6rem; text-shadow:0 0 20px #8844cc; margin-bottom:6px; text-align:center; }
+  #overlay p { color:#ffeeaa; font-size:1rem; margin:3px 0; text-align:center; }
+  .btn {
+    margin-top:18px; padding:12px 38px; font-size:1.5rem; font-weight:900;
+    background:linear-gradient(135deg,#6622aa,#cc88ff);
+    color:#fff; border:none; border-radius:50px; cursor:pointer;
+    box-shadow:0 0 20px #8844cc; letter-spacing:2px;
+  }
+</style>
+</head>
+<body>
+<div id="ui">
+  <div class="ui-box" id="score-box">⭐ 0</div>
+  <div class="ui-box" id="level-box">🎸 Level 1</div>
+  <div class="ui-box" id="lives-box">❤️❤️❤️</div>
+</div>
+<div id="msg"></div>
+<canvas id="c"></canvas>
+<div id="joystick-zone"><div id="joystick-base"></div><div id="joystick-knob"></div></div>
+
+<div id="overlay">
+  <h1>🧸 HELPY RUN! 🎸</h1>
+  <p style="color:#ddaaff;font-size:1.2rem;margin-bottom:4px;">"He shouldn't freak us out, but he does."</p>
+  <p style="color:#ff6666;font-weight:900;font-size:1.1rem;">Glamrock Freddy is chasing you!</p>
+  <p style="margin-top:8px;">Collect ⭐ stars · Avoid Freddy · Find the 🚪 exit!</p>
+  <p style="color:#aaa;font-size:0.85rem;margin-top:6px;">Joystick or Arrow Keys to move</p>
+  <button class="btn" id="startBtn">▶ RUN HELPY!</button>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H;
+function resize(){
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = W; canvas.height = H;
+}
+resize(); window.addEventListener('resize', resize);
+
+// ── Audio ──────────────────────────────────────────────────────────────────
+let ac = null;
+function ensureAudio(){ if(!ac){ ac=new(window.AudioContext||window.webkitAudioContext)(); } if(ac.state==='suspended') ac.resume(); }
+
+function playCollect(){
+  try{
+    ensureAudio();
+    [880,1100,1320].forEach((f,i)=>{
+      const o=ac.createOscillator(),g=ac.createGain();
+      o.frequency.value=f; o.type='sine';
+      const t=ac.currentTime+i*0.07;
+      g.gain.setValueAtTime(0.3,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.15);
+      o.connect(g); g.connect(ac.destination);
+      o.start(t); o.stop(t+0.18);
+    });
+  }catch(e){}
+}
+function playOuch(){
+  try{
+    ensureAudio();
+    const o=ac.createOscillator(),g=ac.createGain();
+    o.type='square'; o.frequency.setValueAtTime(200,ac.currentTime);
+    o.frequency.exponentialRampToValueAtTime(60,ac.currentTime+0.3);
+    g.gain.value=0.4; g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.35);
+    o.connect(g); g.connect(ac.destination);
+    o.start(); o.stop(ac.currentTime+0.4);
+  }catch(e){}
+}
+function playWin(){
+  try{
+    ensureAudio();
+    [523,659,784,1047,784,1047,1319].forEach((f,i)=>{
+      const o=ac.createOscillator(),g=ac.createGain();
+      o.frequency.value=f; o.type='sine';
+      const t=ac.currentTime+i*0.1;
+      g.gain.setValueAtTime(0.35,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.2);
+      o.connect(g); g.connect(ac.destination);
+      o.start(t); o.stop(t+0.22);
+    });
+  }catch(e){}
+}
+
+let bgMusicInterval=null;
+function startBGMusic(){
+  stopBGMusic();
+  ensureAudio();
+  let beat=0;
+  const pattern=[0,0,1,0, 0,0,1,0, 0,1,0,1, 0,0,1,0];
+  bgMusicInterval=setInterval(()=>{
+    try{
+      if(beat%16===0){
+        // bass thump
+        const o=ac.createOscillator(),g=ac.createGain();
+        o.type='triangle'; o.frequency.value=80;
+        g.gain.setValueAtTime(0.4,ac.currentTime); g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.2);
+        o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime+0.22);
+      }
+      if(pattern[beat%16]){
+        const o=ac.createOscillator(),g=ac.createGain();
+        o.type='sawtooth'; o.frequency.value=220+Math.random()*40;
+        g.gain.setValueAtTime(0.1,ac.currentTime); g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.12);
+        o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime+0.14);
+      }
+      beat++;
+    }catch(e){}
+  },120);
+}
+function stopBGMusic(){ if(bgMusicInterval){clearInterval(bgMusicInterval);bgMusicInterval=null;} }
+
+// ── Game state ────────────────────────────────────────────────────────────
+const TILE = 64;
+let level=1, score=0, lives=3, running=false, msgTimer=null;
+let stars=[], freddy={}, exit={}, helpyInvince=0;
+
+const LEVELS = [
+  { fredSpeed:1.2, starCount:8 },
+  { fredSpeed:1.6, starCount:10 },
+  { fredSpeed:2.0, starCount:12 },
+  { fredSpeed:2.5, starCount:14 },
+];
+
+// ── FNAF1 Accurate Freddy Fazbear's Pizza ────────────────────────────────
+// Based on the actual FNAF1 map layout (camera positions / room shapes)
+// Grid: 35 cols x 27 rows, TILE=64px
+// 0=floor 1=wall
+function makePizzaMap(){
+  const C=35, R=27;
+  const m=[];
+  for(let r=0;r<R;r++){ m.push([]); for(let c=0;c<C;c++) m[r].push(1); }
+  function room(c1,r1,c2,r2){ for(let r=r1;r<=r2;r++) for(let c=c1;c<=c2;c++) m[r][c]=0; }
+
+  // === SHOW STAGE (CAM 1A) - top left large room ===
+  room(1,1,9,6);
+  // === DINING AREA (CAM 1B) - large centre room ===
+  room(10,4,22,11);
+  // === BACKSTAGE (CAM 5) - top left of stage ===
+  room(1,7,5,11);
+  // === PIRATE COVE (CAM 1C) - top right alcove ===
+  room(23,1,30,5);
+  // === CORRIDOR BETWEEN STAGE AND DINING ===
+  room(9,4,11,6);
+  // === WEST HALL (CAM 2A) - left corridor ===
+  room(1,12,4,20);
+  // === WEST HALL CORNER (CAM 2B) ===
+  room(1,21,6,23);
+  // === SUPPLY CLOSET (CAM 4A) ===
+  room(5,12,8,14);
+  // === EAST HALL (CAM 4B) - right corridor ===
+  room(28,7,32,19);
+  // === EAST HALL CORNER (CAM 4B lower) ===
+  room(26,20,33,23);
+  // === KITCHEN (CAM 6) - top right, no camera feed ===
+  room(23,6,33,10);
+  // === RESTROOMS (CAM 7) - mid right ===
+  room(23,11,27,16);
+  // === CORRIDOR to kitchen ===
+  room(22,7,24,10);
+  // === MAIN HALL (lower dining) ===
+  room(10,12,22,16);
+  // === PARTY ROOM 1 (CAM 1D) - lower left ===
+  room(1,24,8,25);
+  // === PARTY ROOM 2 (CAM 1E) - lower centre ===
+  room(9,24,16,25);
+  // === PARTY ROOM 3 - lower centre-right ===
+  room(17,24,22,25);
+  // === PARTY ROOM 4 - lower right ===
+  room(23,24,30,25);
+  // === LOWER CORRIDOR connecting party rooms ===
+  room(1,23,30,24);
+  // === OFFICE (CAM not shown) - far left ===
+  room(1,17,3,22);
+  // === LEFT DOOR corridor to office ===
+  room(1,16,4,17);
+  // === RIGHT DOOR / EAST access ===
+  room(22,17,28,19);
+  // === Corridor: dining to east hall ===
+  room(22,9,28,12);
+  // === Corridor: dining to restrooms ===
+  room(22,11,24,14);
+  // === Corridor: west hall to dining ===
+  room(4,9,10,12);
+  // === Corridor: backstage to west hall ===
+  room(1,11,5,13);
+  // === Corridor: party rooms to main ===
+  room(5,16,22,24);
+  // === Corridor: east hall to party ===
+  room(28,19,33,25);
+  // === Bottom wall opening (exit) ===
+  room(15,25,18,26);
+
+  return {map:m, cols:C, rows:R};
+}
+
+// FNAF1 accurate room labels [col, row, label, emoji]
+const ROOM_LABELS = [
+  [5,  3,  'SHOW STAGE',     '🎤'],
+  [16, 7,  'DINING AREA',    '🍕'],
+  [3,  9,  'BACKSTAGE',      '🎭'],
+  [26, 3,  'PIRATE COVE',    '🏴‍☠️'],
+  [28, 8,  'KITCHEN',        '🍳'],
+  [25, 13, 'RESTROOMS',      '🚻'],
+  [2,  16, 'W. HALL',        '🚶'],
+  [3,  22, 'W.HALL CRN',     '↩️'],
+  [6,  13, 'SUPPLY',         '📦'],
+  [30, 13, 'E. HALL',        '🚶'],
+  [29, 21, 'E.HALL CRN',     '↪️'],
+  [4,  24, 'PARTY RM 1',     '🎂'],
+  [12, 24, 'PARTY RM 2',     '🎈'],
+  [19, 24, 'PARTY RM 3',     '🎁'],
+  [26, 24, 'PARTY RM 4',     '🎉'],
+  [2,  19, 'OFFICE',         '📷'],
+];
+
+let map=[], mapCols=0, mapRows=0, camX=0, camY=0;
+
+// Helpy
+let hx=0, hy=0, hFace=1, hBob=0, hFrame=0;
+let hVX=0, hVY=0;
+
+// Joystick
+const jZone=document.getElementById('joystick-zone');
+const jKnob=document.getElementById('joystick-knob');
+let jx=0, jy=0, jActive=false, jTouchId=null;
+function jSet(cx,cy){
+  const r=jZone.getBoundingClientRect();
+  const ox=cx-r.left-60, oy=cy-r.top-60;
+  const d=Math.min(36,Math.hypot(ox,oy));
+  const a=Math.atan2(oy,ox);
+  jx=Math.cos(a)*d/36; jy=Math.sin(a)*d/36;
+  jKnob.style.left=(36+jx*36)+'px'; jKnob.style.top=(36+jy*36)+'px';
+  jActive=true;
+}
+function jClear(){ jx=0;jy=0;jActive=false;jKnob.style.left='36px';jKnob.style.top='36px'; }
+jZone.addEventListener('touchstart',e=>{ e.preventDefault();const t=e.changedTouches[0];jTouchId=t.identifier;jSet(t.clientX,t.clientY); });
+jZone.addEventListener('touchmove', e=>{ e.preventDefault();for(const t of e.changedTouches)if(t.identifier===jTouchId)jSet(t.clientX,t.clientY); });
+jZone.addEventListener('touchend',  e=>{ e.preventDefault();jClear(); });
+jZone.addEventListener('mousedown', e=>{ jSet(e.clientX,e.clientY); });
+window.addEventListener('mousemove',e=>{ if(jActive&&!jTouchId)jSet(e.clientX,e.clientY); });
+window.addEventListener('mouseup',  ()=>{ if(!jTouchId)jClear(); });
+
+const keys={};
+window.addEventListener('keydown',e=>keys[e.key]=true);
+window.addEventListener('keyup',  e=>keys[e.key]=false);
+
+
+// Multiple Freddy enemies
+let freddys = [];
+
+// Freddy start positions on the SHOW STAGE
+const FRED_STARTS = [
+  {x:TILE*3.5,  y:TILE*3.5},  // Stage left
+  {x:TILE*5.5,  y:TILE*3.5},  // Stage centre
+  {x:TILE*7.5,  y:TILE*3.5},  // Stage right
+  {x:TILE*27,   y:TILE*3},    // Pirate Cove area
+];
+
+function startLevel(lvl){
+  const cfg = LEVELS[Math.min(lvl-1, LEVELS.length-1)];
+  const pizza = makePizzaMap();
+  map = pizza.map; mapCols = pizza.cols; mapRows = pizza.rows;
+
+  // Helpy starts in the OFFICE (far left)
+  hx=TILE*2; hy=TILE*19; hFace=1; hVX=0; hVY=0; helpyInvince=0;
+  startX=hx; startY=hy;
+
+  // Exit is at the bottom-centre opening
+  exit={ x:TILE*16.5, y:TILE*25.5 };
+
+  // Number of Freddys = level number (1 on L1, 2 on L2, etc), max 4
+  const fredCount = Math.min(lvl, 4);
+  freddys = [];
+  fredBfsTimers = [];
+  fredTargetsX = [];
+  fredTargetsY = [];
+  for(let i=0;i<fredCount;i++){
+    const sp = FRED_STARTS[i];
+    freddys.push({ x:sp.x, y:sp.y, vx:0, vy:0,
+      speed: cfg.fredSpeed * (1 + i*0.15), // each extra Freddy slightly faster
+      frame:0, angry:false });
+    fredBfsTimers.push(Math.random()*0.5); // stagger pathfinding
+    fredTargetsX.push(sp.x);
+    fredTargetsY.push(sp.y);
+  }
+
+  // Keep freddy as alias for first one (for anger/proximity checks)
+  freddy = freddys[0];
+
+  // Stars scattered across pizzeria
+  stars=[];
+  let attempts=0;
+  while(stars.length<cfg.starCount&&attempts<2000){
+    attempts++;
+    const c=1+Math.floor(Math.random()*(mapCols-2));
+    const r=1+Math.floor(Math.random()*(mapRows-2));
+    if(map[r][c]!==0) continue;
+    const sx=c*TILE+TILE/2, sy=r*TILE+TILE/2;
+    if(Math.hypot(sx-hx,sy-hy)<TILE*2) continue;
+    if(Math.hypot(sx-exit.x,sy-exit.y)<TILE) continue;
+    stars.push({x:sx,y:sy,collected:false,bob:Math.random()*Math.PI*2});
+  }
+
+  updateUI();
+}
+
+function updateUI(){
+  document.getElementById('score-box').textContent='⭐ '+score;
+  document.getElementById('level-box').textContent='🎸 Lvl '+level+' ('+freddys.length+' 🐻)';
+  document.getElementById('lives-box').textContent='❤️'.repeat(Math.max(0,lives));
+}
+
+// ── Pathfinding (simple BFS for Freddy) ──────────────────────────────────
+function bfsNext(fromX,fromY,toX,toY){
+  const fc=Math.floor(fromX/TILE), fr=Math.floor(fromY/TILE);
+  const tc=Math.floor(toX/TILE),   tr=Math.floor(toY/TILE);
+  if(fc===tc&&fr===tr) return {x:toX,y:toY};
+  const visited=new Set(), prev=new Map();
+  const q=[[fc,fr]]; visited.add(fc+','+fr);
+  while(q.length){
+    const [c,r]=q.shift();
+    if(c===tc&&r===tr){
+      // trace back
+      let cur=c+','+r;
+      while(true){
+        const p=prev.get(cur);
+        if(!p) break;
+        const [pc,pr]=p;
+        if(pc===fc&&pr===fr) return {x:c*TILE+TILE/2,y:r*TILE+TILE/2};
+        cur=pc+','+pr;
+      }
+      return {x:tc*TILE+TILE/2,y:tr*TILE+TILE/2};
+    }
+    for(const [dc,dr] of [[0,1],[0,-1],[1,0],[-1,0]]){
+      const nc=c+dc,nr=r+dr;
+      const key=nc+','+nr;
+      if(nc<0||nc>=mapCols||nr<0||nr>=mapRows) continue;
+      if(map[nr][nc]!==0) continue;
+      if(visited.has(key)) continue;
+      visited.add(key); prev.set(key,[c,r]); q.push([nc,nr]);
+    }
+  }
+  return {x:fromX,y:fromY};
+}
+
+// ── Collision ─────────────────────────────────────────────────────────────
+function tileBlocked(x,y){
+  const c=Math.floor(x/TILE), r=Math.floor(y/TILE);
+  if(c<0||c>=mapCols||r<0||r>=mapRows) return true;
+  return map[r][c]!==0;
+}
+function canMove(x,y,radius=14){
+  const pts=[[x-radius,y-radius],[x+radius,y-radius],[x-radius,y+radius],[x+radius,y+radius],[x,y]];
+  return pts.every(([px,py])=>!tileBlocked(px,py));
+}
+
+// ── Update ────────────────────────────────────────────────────────────────
+let fredBfsTimers=[];
+let fredTargetsX=[], fredTargetsY=[];
+
+function update(dt){
+  if(!running) return;
+  hFrame+=dt*8;
+  hBob+=dt*6;
+  helpyInvince=Math.max(0,helpyInvince-dt);
+
+  // Helpy movement
+  const spd=180*dt;
+  let mx=0, my=0;
+  if(keys['ArrowLeft']||keys['a']) mx-=1;
+  if(keys['ArrowRight']||keys['d']) mx+=1;
+  if(keys['ArrowUp']||keys['w']) my-=1;
+  if(keys['ArrowDown']||keys['s']) my+=1;
+  if(jActive){ mx+=jx; my+=jy; }
+  const ml=Math.hypot(mx,my);
+  if(ml>0){
+    hFace=mx>0?1:(mx<0?-1:hFace);
+    const nx=mx/ml, ny=my/ml;
+    if(canMove(hx+nx*spd,hy)) hx+=nx*spd;
+    if(canMove(hx,hy+ny*spd)) hy+=ny*spd;
+  }
+  hx=Math.max(TILE*0.5,Math.min((mapCols-0.5)*TILE,hx));
+  hy=Math.max(TILE*0.5,Math.min((mapRows-0.5)*TILE,hy));
+
+  // Update all Freddys
+  let caught = false;
+  for(let fi=0;fi<freddys.length;fi++){
+    const fred = freddys[fi];
+    fredBfsTimers[fi]-=dt;
+    if(fredBfsTimers[fi]<=0){
+      fredBfsTimers[fi]=0.35+fi*0.05;
+      const next=bfsNext(fred.x,fred.y,hx,hy);
+      fredTargetsX[fi]=next.x; fredTargetsY[fi]=next.y;
+    }
+    const fdx=fredTargetsX[fi]-fred.x, fdy=fredTargetsY[fi]-fred.y;
+    const fl=Math.hypot(fdx,fdy);
+    if(fl>2){
+      const spd2=fred.speed*60*dt;
+      const fnx=fdx/fl, fny=fdy/fl;
+      if(canMove(fred.x+fnx*spd2,fred.y,18)) fred.x+=fnx*spd2;
+      if(canMove(fred.x,fred.y+fny*spd2,18)) fred.y+=fny*spd2;
+    }
+    fred.frame+=dt*6;
+    const fdist=Math.hypot(fred.x-hx,fred.y-hy);
+    fred.angry = fdist < TILE*4;
+    if(fdist<36&&helpyInvince<=0) caught=true;
+  }
+  // alias freddy to first for danger bar
+  freddy = freddys[0];
+
+  // Star collection
+  for(const s of stars){
+    if(!s.collected&&Math.hypot(s.x-hx,s.y-hy)<28){
+      s.collected=true; score+=10; playCollect();
+      updateUI();
+    }
+    s.bob+=dt*3;
+  }
+
+  // Caught by any Freddy
+  if(caught&&helpyInvince<=0){
+    lives--;
+    helpyInvince=2.5;
+    playOuch();
+    updateUI();
+    if(lives<=0){
+      running=false; stopBGMusic();
+      showOverlay('💀 CAUGHT!','Glamrock Freddy got Helpy!\nScore: '+score,'🔄 TRY AGAIN',()=>{
+        score=0;lives=3;level=1;startLevel(1);running=true;startBGMusic();
+      });
+    } else {
+      showMsg('💥 OUCH!\n'+lives+' ❤️ left');
+      // Safe knockback
+      const catcher=freddys.find(f=>Math.hypot(f.x-hx,f.y-hy)<60)||freddys[0];
+      const a=Math.atan2(hy-catcher.y,hx-catcher.x);
+      let pushed=false;
+      for(let dist=TILE*0.5; dist<=TILE*4&&!pushed; dist+=TILE*0.5){
+        const nx=hx+Math.cos(a)*dist, ny=hy+Math.sin(a)*dist;
+        if(canMove(nx,ny)){ hx=nx; hy=ny; pushed=true; }
+      }
+      if(!pushed){
+        for(let r=TILE*0.5; r<=TILE*3&&!pushed; r+=TILE*0.5){
+          for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]]){
+            const nx=hx+dx*r, ny=hy+dy*r;
+            if(canMove(nx,ny)){ hx=nx; hy=ny; pushed=true; break; }
+          }
+        }
+      }
+      if(!pushed){ hx=startX; hy=startY; }
+    }
+  }
+
+  // Reach exit
+  if(Math.hypot(exit.x-hx,exit.y-hy)<32){
+    const remaining=stars.filter(s=>!s.collected).length;
+    if(remaining>0){
+      showMsg('Collect all ⭐ stars first!\n'+remaining+' left');
+    } else {
+      running=false; stopBGMusic(); playWin();
+      score+=level*50;
+      updateUI();
+      if(level>=4){
+        showOverlay('🎉 YOU ESCAPED! 🎉','Helpy got away from Glamrock Freddy!\nFinal Score: '+score,'🏆 PLAY AGAIN',()=>{
+          score=0;lives=3;level=1;startLevel(1);running=true;startBGMusic();
+        });
+      } else {
+        showOverlay('🚪 LEVEL '+(level+1)+'!','Helpy escaped!\n+'+level*50+' bonus pts\nScore: '+score,'▶ NEXT LEVEL',()=>{
+          level++; startLevel(level); running=true; startBGMusic();
+        });
+      }
+    }
+  }
+
+  // Camera - centre on Helpy
+  camX = hx - W/2;
+  camY = hy - H/2;
+}
+
+// ── Drawing ───────────────────────────────────────────────────────────────
+function drawMap(){
+  const startC=Math.max(0,Math.floor(camX/TILE)-1);
+  const endC=Math.min(mapCols,startC+Math.ceil(W/TILE)+2);
+  const startR=Math.max(0,Math.floor(camY/TILE)-1);
+  const endR=Math.min(mapRows,startR+Math.ceil(H/TILE)+2);
+
+  for(let r=startR;r<endR;r++){
+    for(let c=startC;c<endC;c++){
+      const sx=c*TILE-camX, sy=r*TILE-camY;
+      if(map[r][c]===1){
+        // Wall - Fazbear brick (dark red/brown)
+        ctx.fillStyle='#3a0e0e';
+        ctx.fillRect(sx,sy,TILE,TILE);
+        // Brick pattern
+        const rowOff = (r%2===0) ? 0 : TILE/2;
+        ctx.fillStyle='#4a1818';
+        ctx.fillRect(sx+1+rowOff%TILE, sy+2, TILE/2-3, TILE/2-3);
+        ctx.fillRect(sx+1+(rowOff+TILE/2)%TILE, sy+TILE/2+2, TILE/2-3, TILE/2-3);
+        ctx.strokeStyle='#280808'; ctx.lineWidth=1;
+        ctx.strokeRect(sx,sy,TILE,TILE);
+      } else {
+        // Pizzeria floor - checkerboard red/cream
+        const isRed=(c+r)%2===0;
+        ctx.fillStyle=isRed?'#8b1a1a':'#d4b483';
+        ctx.fillRect(sx,sy,TILE,TILE);
+        // Floor tile grout lines
+        ctx.strokeStyle=isRed?'#6b0a0a':'#b8935a';
+        ctx.lineWidth=0.5;
+        ctx.strokeRect(sx+1,sy+1,TILE-2,TILE-2);
+      }
+    }
+  }
+
+  // Room labels
+  ctx.save();
+  for(const [lc,lr,label,emoji] of ROOM_LABELS){
+    const sx=lc*TILE-camX, sy=lr*TILE-camY;
+    if(sx<-TILE*3||sx>W+TILE*3||sy<-TILE*2||sy>H+TILE*2) continue;
+    ctx.globalAlpha=0.55;
+    ctx.font='bold 10px Arial';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillStyle='#fff';
+    ctx.fillText(emoji+' '+label, sx, sy);
+  }
+  ctx.restore();
+}
+
+function drawExit(){
+  const sx=exit.x-camX, sy=exit.y-camY;
+  const pulse=0.85+0.15*Math.sin(Date.now()*0.004);
+  ctx.save();
+  ctx.shadowColor='#00ff88'; ctx.shadowBlur=20*pulse;
+  ctx.fillStyle=`rgba(0,255,136,${0.3*pulse})`;
+  ctx.beginPath(); ctx.arc(sx,sy,26,0,Math.PI*2); ctx.fill();
+  ctx.font='36px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('🚪',sx,sy);
+  ctx.restore();
+}
+
+function drawStars(){
+  for(const s of stars){
+    if(s.collected) continue;
+    const sx=s.x-camX, sy=s.y-camY+Math.sin(s.bob)*4;
+    ctx.save();
+    ctx.shadowColor='#ffd700'; ctx.shadowBlur=14;
+    ctx.font='28px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('⭐',sx,sy);
+    ctx.restore();
+  }
+}
+
+function drawHelpy(){
+  const sx=hx-camX, sy=hy-camY;
+  const bob=Math.sin(hBob)*3;
+  const flash=helpyInvince>0&&Math.floor(helpyInvince*8)%2===0;
+  if(flash) return;
+
+  ctx.save();
+  ctx.translate(sx, sy+bob);
+  ctx.scale(hFace, 1);
+
+  // Shadow
+  ctx.fillStyle='rgba(0,0,0,0.3)';
+  ctx.beginPath(); ctx.ellipse(0,24,18,5,0,0,Math.PI*2); ctx.fill();
+
+  // Body - purple round bear body (like Funtime Freddy/Helpy)
+  const bodyGrad=ctx.createRadialGradient(-6,-8,3,0,0,24);
+  bodyGrad.addColorStop(0,'#ddaaff'); bodyGrad.addColorStop(0.5,'#9966cc'); bodyGrad.addColorStop(1,'#6622aa');
+  ctx.fillStyle=bodyGrad;
+  ctx.beginPath(); ctx.ellipse(0,4,20,22,0,0,Math.PI*2); ctx.fill();
+
+  // Belly
+  ctx.fillStyle='#ccaaee';
+  ctx.beginPath(); ctx.ellipse(0,8,11,13,0,0,Math.PI*2); ctx.fill();
+
+  // Buttons
+  ctx.fillStyle='#330066';
+  [-6,0,6].forEach(bx=>{ ctx.beginPath(); ctx.arc(bx,8+Math.abs(bx)*0.5,2.5,0,Math.PI*2); ctx.fill(); });
+
+  // Bow tie
+  ctx.fillStyle='#110022';
+  ctx.beginPath(); ctx.moveTo(-8,-6); ctx.lineTo(-2,-3); ctx.lineTo(-8,0); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(8,-6); ctx.lineTo(2,-3); ctx.lineTo(8,0); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#222'; ctx.beginPath(); ctx.arc(0,-3,3,0,Math.PI*2); ctx.fill();
+
+  // Head
+  const headGrad=ctx.createRadialGradient(-5,-28,3,0,-22,18);
+  headGrad.addColorStop(0,'#e8ccff'); headGrad.addColorStop(1,'#9966cc');
+  ctx.fillStyle=headGrad;
+  ctx.beginPath(); ctx.ellipse(0,-22,16,18,0,0,Math.PI*2); ctx.fill();
+
+  // Ears (round circles on side of head)
+  ctx.fillStyle='#9966cc';
+  ctx.beginPath(); ctx.arc(-15,-28,9,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(15,-28,9,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#ddaaff';
+  ctx.beginPath(); ctx.arc(-15,-28,5,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(15,-28,5,0,Math.PI*2); ctx.fill();
+
+  // Top hat
+  ctx.fillStyle='#111';
+  ctx.beginPath(); ctx.roundRect(-14,-46,28,4,1); ctx.fill(); // brim
+  ctx.beginPath(); ctx.roundRect(-9,-62,18,18,2); ctx.fill(); // top
+
+  // Eyes - big round white with blue iris
+  ctx.fillStyle='#fff';
+  ctx.beginPath(); ctx.arc(-6,-24,7,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(6,-24,7,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#4499ff';
+  ctx.beginPath(); ctx.arc(-6,-24,4,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(6,-24,4,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#000';
+  ctx.beginPath(); ctx.arc(-5,-24,2,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(7,-24,2,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#fff';
+  ctx.beginPath(); ctx.arc(-4,-25,1,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(8,-25,1,0,Math.PI*2); ctx.fill();
+
+  // Nose + cheeks
+  ctx.fillStyle='#333'; ctx.beginPath(); ctx.ellipse(0,-18,4,3,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(255,100,100,0.4)';
+  ctx.beginPath(); ctx.ellipse(-9,-20,5,3,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(9,-20,5,3,0,0,Math.PI*2); ctx.fill();
+
+  // Smile
+  ctx.strokeStyle='#333'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.arc(0,-14,6,0.15,Math.PI-0.15); ctx.stroke();
+
+  // Arms
+  ctx.fillStyle='#9966cc';
+  ctx.beginPath(); ctx.ellipse(-24,2,6,10,0.4,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(24,2,6,10,-0.4,0,Math.PI*2); ctx.fill();
+  // Hands
+  ctx.fillStyle='#ccaaee';
+  ctx.beginPath(); ctx.arc(-26,10,6,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(26,10,6,0,Math.PI*2); ctx.fill();
+
+  // Legs
+  ctx.fillStyle='#9966cc';
+  ctx.beginPath(); ctx.ellipse(-8,26,6,8,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(8,26,6,8,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#ccaaee';
+  ctx.beginPath(); ctx.ellipse(-8,34,7,5,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(8,34,7,5,0,0,Math.PI*2); ctx.fill();
+
+  ctx.restore();
+}
+
+function drawFreddy(fred, idx){
+  const sx=fred.x-camX, sy=fred.y-camY;
+  const bob=Math.sin(fred.frame)*4;
+  const angry=fred.angry;
+
+  ctx.save();
+  ctx.translate(sx,sy+bob);
+
+  // Glow when angry
+  if(angry){ ctx.shadowColor='#ff0000'; ctx.shadowBlur=25; }
+
+  // Shadow
+  ctx.fillStyle='rgba(0,0,0,0.35)';
+  ctx.beginPath(); ctx.ellipse(0,48,28,7,0,0,Math.PI*2); ctx.fill();
+  ctx.shadowBlur=0;
+
+  // Body - big glamrock bear (gold/teal)
+  const bg=ctx.createRadialGradient(-8,-5,5,0,0,36);
+  bg.addColorStop(0,'#ffdd66'); bg.addColorStop(0.5,'#cc9900'); bg.addColorStop(1,'#885500');
+  ctx.fillStyle=bg;
+  ctx.beginPath(); ctx.ellipse(0,8,32,36,0,0,Math.PI*2); ctx.fill();
+
+  // Chest plate (teal star)
+  ctx.fillStyle='#00ccaa';
+  ctx.beginPath(); ctx.ellipse(0,4,18,20,0,0,Math.PI*2); ctx.fill();
+  // Glamrock star on chest
+  ctx.fillStyle='#ffdd66'; ctx.font='22px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('⭐',0,4);
+
+  // Shoulder pads
+  ctx.fillStyle='#ffcc00';
+  ctx.beginPath(); ctx.ellipse(-32,-4,10,8,0.4,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(32,-4,10,8,-0.4,0,Math.PI*2); ctx.fill();
+
+  // Head
+  const hg=ctx.createRadialGradient(-8,-40,5,0,-32,24);
+  hg.addColorStop(0,'#ffee88'); hg.addColorStop(1,'#cc8800');
+  ctx.fillStyle=hg;
+  ctx.beginPath(); ctx.ellipse(0,-32,22,26,0,0,Math.PI*2); ctx.fill();
+
+  // Ears
+  ctx.fillStyle='#cc8800';
+  ctx.beginPath(); ctx.arc(-20,-46,11,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(20,-46,11,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#ffdd44';
+  ctx.beginPath(); ctx.arc(-20,-46,6,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(20,-46,6,0,Math.PI*2); ctx.fill();
+
+  // Glamrock hair/mohawk
+  ctx.fillStyle='#00ccaa';
+  for(let i=-2;i<=2;i++){
+    ctx.beginPath(); ctx.ellipse(i*5,-62,4,10,-i*0.15,0,Math.PI*2); ctx.fill();
+  }
+
+  // Eyes - angry or normal
+  ctx.fillStyle='#fff';
+  ctx.beginPath(); ctx.arc(-9,-34,8,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(9,-34,8,0,Math.PI*2); ctx.fill();
+  if(angry){
+    ctx.fillStyle='#ff2200';
+    ctx.beginPath(); ctx.arc(-9,-34,5,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(9,-34,5,0,Math.PI*2); ctx.fill();
+    // Angry brows
+    ctx.strokeStyle='#000'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(-16,-44); ctx.lineTo(-3,-40); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(16,-44); ctx.lineTo(3,-40); ctx.stroke();
+  } else {
+    ctx.fillStyle='#3366ff';
+    ctx.beginPath(); ctx.arc(-9,-34,5,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(9,-34,5,0,Math.PI*2); ctx.fill();
+  }
+  ctx.fillStyle='#000';
+  ctx.beginPath(); ctx.arc(-8,-33,2.5,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(10,-33,2.5,0,Math.PI*2); ctx.fill();
+
+  // Snout
+  ctx.fillStyle='#ddaa44';
+  ctx.beginPath(); ctx.ellipse(0,-22,12,9,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#aa6600';
+  ctx.beginPath(); ctx.ellipse(0,-21,4,3,0,0,Math.PI*2); ctx.fill();
+
+  // Teeth (big)
+  ctx.fillStyle='#111';
+  ctx.beginPath(); ctx.ellipse(0,-14,10,6,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#eee';
+  [[-4,-12],[0,-12],[4,-12]].forEach(([tx,ty])=>{
+    ctx.beginPath(); ctx.moveTo(tx-3,-16); ctx.lineTo(tx,-11); ctx.lineTo(tx+3,-16); ctx.closePath(); ctx.fill();
+  });
+
+  // Microphone in right hand
+  ctx.fillStyle='#cc8800';
+  ctx.beginPath(); ctx.ellipse(44,6,7,12,-0.3,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#888'; ctx.lineWidth=3; ctx.strokeStyle='#888';
+  ctx.beginPath(); ctx.moveTo(40,16); ctx.lineTo(36,30); ctx.stroke();
+  ctx.fillStyle='#555';
+  ctx.beginPath(); ctx.arc(44,0,8,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#777';
+  ctx.beginPath(); ctx.arc(44,0,5,0,Math.PI*2); ctx.fill();
+
+  // Arms
+  ctx.fillStyle='#cc9900';
+  ctx.beginPath(); ctx.ellipse(-38,4,9,14,0.5,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(38,4,9,14,-0.5,0,Math.PI*2); ctx.fill();
+
+  // Legs
+  ctx.fillStyle='#885500';
+  ctx.beginPath(); ctx.ellipse(-12,44,9,12,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(12,44,9,12,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#cc9900';
+  ctx.beginPath(); ctx.ellipse(-12,56,10,6,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(12,56,10,6,0,0,Math.PI*2); ctx.fill();
+
+  ctx.restore();
+}
+
+// Danger indicator when Freddy is close
+function drawDangerBar(){
+  if(!freddys.length) return;
+  const dist=Math.min(...freddys.map(f=>Math.hypot(f.x-hx,f.y-hy)));
+  const freddy=freddys.reduce((a,b)=>Math.hypot(a.x-hx,a.y-hy)<Math.hypot(b.x-hx,b.y-hy)?a:b);
+  const maxDist=TILE*8;
+  if(dist>maxDist) return;
+  const danger=1-dist/maxDist;
+  ctx.save();
+  ctx.globalAlpha=danger*0.4;
+  ctx.fillStyle=`rgb(255,${Math.floor(100*(1-danger))},0)`;
+  ctx.fillRect(0,0,W,H);
+  ctx.globalAlpha=1;
+  // Arrow pointing to Freddy
+  const ax=freddy.x-camX, ay=freddy.y-camY;
+  const angle=Math.atan2(ay-H/2,ax-W/2);
+  const edgeX=W/2+Math.cos(angle)*120, edgeY=H/2+Math.sin(angle)*120;
+  ctx.save();
+  ctx.translate(edgeX,edgeY); ctx.rotate(angle);
+  ctx.fillStyle=`rgba(255,50,50,${danger*0.9})`;
+  ctx.font='28px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('⚠️',0,0);
+  ctx.restore();
+  ctx.restore();
+}
+
+function drawScene(){
+  ctx.fillStyle='#0a0a1a'; ctx.fillRect(0,0,W,H);
+  drawMap();
+  drawExit();
+  drawStars();
+  for(let fi=0;fi<freddys.length;fi++) drawFreddy(freddys[fi], fi);
+  drawHelpy();
+  drawDangerBar();
+}
+
+// ── Overlay / messages ────────────────────────────────────────────────────
+function showOverlay(title,body,btnText,onBtn){
+  const ov=document.getElementById('overlay');
+  ov.innerHTML=`
+    <h1>${title}</h1>
+    <p style="color:#ffeeaa;font-size:1.1rem;white-space:pre-line;text-align:center;margin:12px 0;">${body}</p>
+    <button class="btn" id="ovBtn">${btnText}</button>
+  `;
+  ov.style.display='flex';
+  document.getElementById('ovBtn').addEventListener('click',()=>{ ov.style.display='none'; onBtn(); });
+}
+function showMsg(text){
+  const el=document.getElementById('msg');
+  el.textContent=text; el.style.opacity='1';
+  clearTimeout(msgTimer);
+  msgTimer=setTimeout(()=>el.style.opacity='0',2000);
+}
+
+// ── Loop ──────────────────────────────────────────────────────────────────
+let lastTime=0;
+function loop(now){
+  const dt=Math.min((now-lastTime)/1000,0.05);
+  lastTime=now;
+  try{ update(dt); drawScene(); } catch(e){ console.error(e); }
+  requestAnimationFrame(loop);
+}
+
+document.getElementById('startBtn').addEventListener('click',()=>{
+  ensureAudio();
+  document.getElementById('overlay').style.display='none';
+  score=0; lives=3; level=1;
+  startLevel(1); running=true;
+  startBGMusic();
+});
+
+requestAnimationFrame(t=>{ lastTime=t; requestAnimationFrame(loop); });
+</script>
+</body>
+</html>

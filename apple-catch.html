@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Apple Catch!</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#87CEEB; overflow:hidden; font-family:'Arial Black',sans-serif; touch-action:none; user-select:none; }
+  canvas { display:block; margin:0 auto; }
+  #ui {
+    position:fixed; top:10px; left:0; right:0;
+    display:flex; justify-content:center; gap:14px; flex-wrap:wrap;
+    pointer-events:none; z-index:10;
+  }
+  .ui-box {
+    background:rgba(0,0,0,0.55); border:2px solid #88cc44;
+    border-radius:10px; padding:5px 14px;
+    color:#fff; font-size:1rem; font-family:'Arial Black',sans-serif;
+  }
+  #msg {
+    position:fixed; top:38%; left:50%; transform:translate(-50%,-50%);
+    color:#ffd700; font-size:2rem; font-weight:900;
+    text-shadow:0 0 16px #ff8800; white-space:pre-line;
+    pointer-events:none; opacity:0; transition:opacity 0.3s;
+    z-index:20; text-align:center;
+    background:rgba(0,0,0,0.55); padding:12px 24px; border-radius:14px;
+  }
+  #overlay {
+    position:fixed; inset:0;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:rgba(0,0,0,0.88); z-index:30;
+  }
+  #overlay h1 { color:#aaddff; font-size:2.6rem; text-shadow:0 0 20px #44aaff; margin-bottom:8px; text-align:center; }
+  #overlay p  { color:#ffeeaa; font-size:1rem; margin:3px 0; text-align:center; }
+  .btn {
+    margin-top:18px; padding:12px 38px; font-size:1.5rem; font-weight:900;
+    background:linear-gradient(135deg,#44aa00,#88ee22);
+    color:#fff; border:none; border-radius:50px; cursor:pointer;
+    box-shadow:0 0 20px #44aa0088; letter-spacing:2px;
+  }
+</style>
+</head>
+<body>
+<div id="ui">
+  <div class="ui-box" id="score-box">🍏 Score: 0</div>
+  <div class="ui-box" id="parts-box">🍎 Parts: 0/10</div>
+  <div class="ui-box" id="level-box">⭐ Level 1</div>
+  <div class="ui-box" id="lives-box">❤️❤️❤️</div>
+</div>
+<div id="msg"></div>
+<canvas id="c"></canvas>
+<div id="overlay">
+  <h1>🍏 APPLE CATCH! 🍏</h1>
+  <p style="color:#aaffaa;font-size:1.2rem;margin-bottom:4px;">You're a Granny Smith apple slice!</p>
+  <p>Catch your falling apple pieces from the sky!</p>
+  <p style="color:#ff6666;font-weight:900;margin-top:6px;">⚠️ Drop one and you lose a life!</p>
+  <p style="color:#aaa;font-size:0.85rem;margin-top:6px;">Drag or tap to move · Collect 10 parts to win!</p>
+  <button class="btn" id="startBtn">▶ START CATCHING!</button>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H;
+function resize(){ W=window.innerWidth; H=window.innerHeight; canvas.width=W; canvas.height=H; }
+resize(); window.addEventListener('resize', resize);
+
+// ── Audio ─────────────────────────────────────────────────────────────────
+let ac = null;
+function ensureAudio(){ if(!ac) ac=new(window.AudioContext||window.webkitAudioContext)(); if(ac.state==='suspended') ac.resume(); }
+function playCatch(){
+  try{
+    ensureAudio();
+    [440,554,659].forEach((f,i)=>{
+      const o=ac.createOscillator(),g=ac.createGain(); o.type='sine'; o.frequency.value=f;
+      const t=ac.currentTime+i*0.06;
+      g.gain.setValueAtTime(0.35,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.18);
+      o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t+0.2);
+    });
+  }catch(e){}
+}
+function playDrop(){
+  try{
+    ensureAudio();
+    const o=ac.createOscillator(),g=ac.createGain(); o.type='square';
+    o.frequency.setValueAtTime(300,ac.currentTime);
+    o.frequency.exponentialRampToValueAtTime(60,ac.currentTime+0.4);
+    g.gain.value=0.4; g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.45);
+    o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime+0.5);
+  }catch(e){}
+}
+function playWin(){
+  try{
+    ensureAudio();
+    [523,659,784,1047,784,1047,1319].forEach((f,i)=>{
+      const o=ac.createOscillator(),g=ac.createGain(); o.type='sine'; o.frequency.value=f;
+      const t=ac.currentTime+i*0.1;
+      g.gain.setValueAtTime(0.35,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.2);
+      o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t+0.22);
+    });
+  }catch(e){}
+}
+let bgInt=null;
+function startBG(){
+  stopBG(); ensureAudio();
+  let b=0;
+  bgInt=setInterval(()=>{
+    try{
+      if(b%8===0){
+        const o=ac.createOscillator(),g=ac.createGain(); o.type='triangle'; o.frequency.value=130;
+        g.gain.setValueAtTime(0.2,ac.currentTime); g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.18);
+        o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime+0.2);
+      }
+      if(b%4===2){
+        const o=ac.createOscillator(),g=ac.createGain(); o.type='sine'; o.frequency.value=196;
+        g.gain.setValueAtTime(0.12,ac.currentTime); g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.12);
+        o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime+0.14);
+      }
+      b++;
+    }catch(e){}
+  },160);
+}
+function stopBG(){ if(bgInt){clearInterval(bgInt);bgInt=null;} }
+
+// ── Game State ────────────────────────────────────────────────────────────
+let score=0, lives=3, level=1, partsNeeded=10, partsCaught=0;
+let running=false, msgTimer=null;
+let fallers=[], particles=[], clouds=[], catchFlash=0;
+
+// Player (Granny Smith apple slice)
+let px = 0, py = 0; // set on start
+const PW = 90, PH = 55; // player width/height
+let targetX = 0;
+
+// Apple piece types to collect
+const PARTS = [
+  { emoji:'🍏', name:'Green Apple',  pts:10, color:'#66cc22', w:36, h:36 },
+  { emoji:'🍎', name:'Red Apple',    pts:15, color:'#dd2222', w:36, h:36 },
+  { emoji:'🌿', name:'Leaf',         pts:5,  color:'#44aa00', w:28, h:28 },
+  { emoji:'🪴', name:'Stem',         pts:5,  color:'#885500', w:24, h:30 },
+  { emoji:'🍐', name:'Pear',         pts:8,  color:'#ccdd44', w:32, h:36 },
+  { emoji:'✨', name:'Apple Star',   pts:20, color:'#ffdd00', w:30, h:30 },
+];
+// Bad items to dodge
+const BADS = [
+  { emoji:'🪱', name:'Worm!',   color:'#884400' },
+  { emoji:'🔪', name:'Knife!',  color:'#888888' },
+  { emoji:'🍋', name:'Lemon!',  color:'#ffee00' },
+];
+
+// Level configs
+const LEVELS = [
+  { speed:120, spawnRate:1.8, badChance:0 },
+  { speed:160, spawnRate:1.4, badChance:0.1 },
+  { speed:200, spawnRate:1.1, badChance:0.15 },
+  { speed:240, spawnRate:0.9, badChance:0.2 },
+  { speed:280, spawnRate:0.7, badChance:0.25 },
+];
+
+let spawnTimer=0;
+let levelTimer=0;
+
+// Clouds
+for(let i=0;i<6;i++){
+  clouds.push({ x:Math.random()*1200, y:30+Math.random()*120, spd:10+Math.random()*20, w:80+Math.random()*100 });
+}
+
+// ── Input ─────────────────────────────────────────────────────────────────
+let touchX = null;
+canvas.addEventListener('touchstart', e=>{ e.preventDefault(); touchX=e.touches[0].clientX; });
+canvas.addEventListener('touchmove',  e=>{ e.preventDefault(); touchX=e.touches[0].clientX; });
+canvas.addEventListener('touchend',   e=>{ touchX=null; });
+canvas.addEventListener('mousemove',  e=>{ targetX=e.clientX; });
+const keys={};
+window.addEventListener('keydown', e=>keys[e.key]=true);
+window.addEventListener('keyup',   e=>keys[e.key]=false);
+
+// ── Start / Level setup ───────────────────────────────────────────────────
+function startGame(){
+  score=0; lives=3; level=1; partsCaught=0;
+  px=W/2; py=H-80; targetX=W/2;
+  fallers=[]; particles=[];
+  spawnTimer=0; levelTimer=0; catchFlash=0;
+  running=true;
+  updateUI();
+  startBG();
+}
+
+function updateUI(){
+  document.getElementById('score-box').textContent='🍏 Score: '+score;
+  document.getElementById('parts-box').textContent='🍎 Parts: '+partsCaught+'/'+partsNeeded;
+  document.getElementById('level-box').textContent='⭐ Level '+level;
+  document.getElementById('lives-box').textContent='❤️'.repeat(Math.max(0,lives));
+}
+
+function spawnFaller(){
+  const cfg=LEVELS[Math.min(level-1,LEVELS.length-1)];
+  const isBad=Math.random()<cfg.badChance;
+  if(isBad){
+    const b=BADS[Math.floor(Math.random()*BADS.length)];
+    fallers.push({ x:40+Math.random()*(W-80), y:-40, vy:cfg.speed*0.8, bad:true, emoji:b.emoji, name:b.name, color:b.color, w:34, h:34, rot:0, rotSpd:(Math.random()-0.5)*3 });
+  } else {
+    const p=PARTS[Math.floor(Math.random()*PARTS.length)];
+    fallers.push({ x:40+Math.random()*(W-80), y:-40, vy:cfg.speed, bad:false, emoji:p.emoji, name:p.name, color:p.color, pts:p.pts, w:p.w, h:p.h, rot:0, rotSpd:(Math.random()-0.5)*2 });
+  }
+}
+
+// ── Particles ─────────────────────────────────────────────────────────────
+function spawnParticles(x,y,color){
+  for(let i=0;i<16;i++){
+    const a=Math.random()*Math.PI*2, spd=60+Math.random()*120;
+    particles.push({ x,y, vx:Math.cos(a)*spd, vy:Math.sin(a)*spd-80, life:1, color, r:3+Math.random()*5 });
+  }
+}
+
+// ── Update ────────────────────────────────────────────────────────────────
+let lastTime=0;
+function update(dt){
+  if(!running) return;
+
+  // Player movement
+  const spd=420*dt;
+  if(touchX!==null) targetX=touchX;
+  if(keys['ArrowLeft']||keys['a']) targetX=Math.max(PW/2, targetX-spd*2);
+  if(keys['ArrowRight']||keys['d']) targetX=Math.min(W-PW/2, targetX+spd*2);
+  // Smooth follow
+  px+=(targetX-px)*Math.min(1,dt*14);
+  px=Math.max(PW/2, Math.min(W-PW/2, px));
+  py=H-80;
+
+  // Spawn
+  const cfg=LEVELS[Math.min(level-1,LEVELS.length-1)];
+  spawnTimer-=dt;
+  if(spawnTimer<=0){ spawnTimer=cfg.spawnRate*(0.8+Math.random()*0.4); spawnFaller(); }
+
+  // Level up every 30 seconds
+  levelTimer+=dt;
+  if(levelTimer>30&&level<5){ levelTimer=0; level++; showMsg('⭐ LEVEL '+level+'!\nFaster!'); updateUI(); }
+
+  // Update fallers
+  for(let i=fallers.length-1;i>=0;i--){
+    const f=fallers[i];
+    f.y+=f.vy*dt;
+    f.rot+=f.rotSpd*dt;
+
+    // Catch check
+    if(f.y+f.h/2>py-PH/2 && f.y-f.h/2<py+PH/2 && f.x+f.w/2>px-PW/2 && f.x-f.w/2<px+PW/2){
+      fallers.splice(i,1);
+      if(f.bad){
+        // Hit bad item - lose a life
+        lives--; playDrop(); catchFlash=-1;
+        showMsg('🪱 '+f.name+'\n-1 Life!');
+        updateUI();
+        if(lives<=0){ gameOver(); return; }
+      } else {
+        // Caught good part!
+        score+=f.pts; partsCaught++; playCatch(); catchFlash=0.5;
+        spawnParticles(f.x,f.y,f.color);
+        showMsg(f.emoji+' '+f.name+'!\n+'+f.pts);
+        updateUI();
+        if(partsCaught>=partsNeeded){ levelWin(); return; }
+      }
+      continue;
+    }
+
+    // Missed - fell to ground
+    if(f.y>H+40){
+      fallers.splice(i,1);
+      if(!f.bad){
+        lives--; playDrop();
+        showMsg('💥 MISSED!\n-1 Life!');
+        updateUI();
+        if(lives<=0){ gameOver(); return; }
+      }
+    }
+  }
+
+  // Particles
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];
+    p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=200*dt; p.life-=dt*2;
+    if(p.life<=0) particles.splice(i,1);
+  }
+
+  // Clouds
+  for(const c of clouds){
+    c.x+=c.spd*dt;
+    if(c.x>W+c.w) c.x=-c.w;
+  }
+
+  if(catchFlash>0) catchFlash=Math.max(0,catchFlash-dt*3);
+  if(catchFlash<0) catchFlash=Math.min(0,catchFlash+dt*3);
+}
+
+// ── Win / Lose ────────────────────────────────────────────────────────────
+function levelWin(){
+  running=false; stopBG(); playWin();
+  const bonus=lives*20+level*10;
+  score+=bonus;
+  updateUI();
+  showOverlay('🍏 APPLE COMPLETE! 🍏',
+    `You collected all your parts!\n+${bonus} bonus pts\nTotal: ${score}`,
+    '🍎 PLAY AGAIN!',
+    ()=>{ startGame(); });
+}
+function gameOver(){
+  running=false; stopBG();
+  showOverlay('💔 DROPPED IT ALL!',`Score: ${score}\nYou lost all your lives!`,'🔄 TRY AGAIN',
+    ()=>{ startGame(); });
+}
+
+// ── Drawing ───────────────────────────────────────────────────────────────
+function drawBackground(){
+  // Sky gradient
+  const sky=ctx.createLinearGradient(0,0,0,H);
+  sky.addColorStop(0,'#5bbce4'); sky.addColorStop(0.7,'#87CEEB'); sky.addColorStop(1,'#c8f0a0');
+  ctx.fillStyle=sky; ctx.fillRect(0,0,W,H);
+
+  // Clouds
+  ctx.fillStyle='rgba(255,255,255,0.88)';
+  for(const c of clouds){
+    ctx.beginPath(); ctx.ellipse(c.x,c.y,c.w/2,20,0,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(c.x-c.w/4,c.y+8,c.w/3.5,15,0,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(c.x+c.w/4,c.y+8,c.w/3.5,15,0,0,Math.PI*2); ctx.fill();
+  }
+
+  // Ground
+  const grd=ctx.createLinearGradient(0,H-50,0,H);
+  grd.addColorStop(0,'#5a9a20'); grd.addColorStop(1,'#3a6a10');
+  ctx.fillStyle=grd; ctx.fillRect(0,H-50,W,50);
+  // Grass tufts
+  ctx.fillStyle='#4a8018';
+  for(let gx=0;gx<W;gx+=18){
+    ctx.beginPath(); ctx.moveTo(gx,H-50); ctx.quadraticCurveTo(gx+4,H-62,gx+8,H-50); ctx.fill();
+  }
+
+  // Apple tree in background
+  drawTree(W*0.12, H-50);
+  drawTree(W*0.88, H-50);
+}
+
+function drawTree(x,y){
+  ctx.fillStyle='#5C3A1A';
+  ctx.fillRect(x-8,y-90,16,90);
+  ctx.fillStyle='#2d7a00';
+  ctx.beginPath(); ctx.arc(x,y-110,48,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#3a9900';
+  ctx.beginPath(); ctx.arc(x-18,y-90,34,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x+18,y-90,34,0,Math.PI*2); ctx.fill();
+  // Apples on tree
+  ctx.fillStyle='#dd2222';
+  [[0,-128],[20,-108],[-20,-108],[8,-90],[-10,-95]].forEach(([dx,dy])=>{
+    ctx.beginPath(); ctx.arc(x+dx,y+dy,7,0,Math.PI*2); ctx.fill();
+  });
+}
+
+function drawPlayer(){
+  ctx.save();
+  ctx.translate(px, py);
+
+  // Shadow
+  ctx.fillStyle='rgba(0,0,0,0.2)';
+  ctx.beginPath(); ctx.ellipse(0,PH/2+4,PW/2,8,0,0,Math.PI*2); ctx.fill();
+
+  // Apple slice body - Granny Smith green
+  // Main wedge shape
+  const grad=ctx.createRadialGradient(-PW*0.15,-PH*0.1,4,0,0,PW*0.6);
+  grad.addColorStop(0,'#c8f07a'); grad.addColorStop(0.4,'#88dd22'); grad.addColorStop(1,'#44aa00');
+  ctx.fillStyle=grad;
+  ctx.beginPath();
+  ctx.moveTo(0,-PH/2); // top point
+  ctx.bezierCurveTo(PW/2,-PH/2, PW/2,PH/2-8, PW/4,PH/2); // right side
+  ctx.bezierCurveTo(0,PH/2+6, -PW/4,PH/2, -PW/2,PH/2-8); // bottom curve
+  ctx.bezierCurveTo(-PW/2,-PH/2, -PW/4,-PH/2-4, 0,-PH/2); // left side
+  ctx.closePath(); ctx.fill();
+
+  // White flesh / core area
+  ctx.fillStyle='rgba(240,255,220,0.7)';
+  ctx.beginPath();
+  ctx.moveTo(0,-PH/2+6);
+  ctx.bezierCurveTo(PW/2*0.6,-PH/2+6, PW/2*0.65,PH/2-14, PW/4*0.7,PH/2-6);
+  ctx.bezierCurveTo(0,PH/2, -PW/4*0.7,PH/2-6, -PW/2*0.65,PH/2-14);
+  ctx.bezierCurveTo(-PW/2*0.6,-PH/2+6, -PW/4,-PH/2+4, 0,-PH/2+6);
+  ctx.fill();
+
+  // Seeds
+  ctx.fillStyle='#5C3A1A';
+  [[-8,4],[0,8],[8,4],[-4,-4],[4,-4]].forEach(([sx,sy])=>{
+    ctx.save(); ctx.translate(sx,sy); ctx.rotate(0.3);
+    ctx.beginPath(); ctx.ellipse(0,0,3,5,0,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  });
+
+  // Skin edge outline (green)
+  ctx.strokeStyle='#33880a'; ctx.lineWidth=2.5;
+  ctx.beginPath();
+  ctx.moveTo(0,-PH/2);
+  ctx.bezierCurveTo(PW/2,-PH/2, PW/2,PH/2-8, PW/4,PH/2);
+  ctx.bezierCurveTo(0,PH/2+6, -PW/4,PH/2, -PW/2,PH/2-8);
+  ctx.bezierCurveTo(-PW/2,-PH/2, -PW/4,-PH/2-4, 0,-PH/2);
+  ctx.closePath(); ctx.stroke();
+
+  // Cute face
+  // Eyes
+  ctx.fillStyle='#222';
+  ctx.beginPath(); ctx.arc(-12,-8,5,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(12,-8,5,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#fff';
+  ctx.beginPath(); ctx.arc(-10,-9,2,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(14,-9,2,0,Math.PI*2); ctx.fill();
+  // Cheeks
+  ctx.fillStyle='rgba(200,80,80,0.35)';
+  ctx.beginPath(); ctx.ellipse(-18,-3,7,4,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(18,-3,7,4,0,0,Math.PI*2); ctx.fill();
+  // Smile
+  ctx.strokeStyle='#33880a'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(0,2,10,0.2,Math.PI-0.2); ctx.stroke();
+
+  // Little arms reaching up to catch
+  ctx.strokeStyle='#44aa00'; ctx.lineWidth=5; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(-PW/2+6,-4); ctx.lineTo(-PW/2-10,-20); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(PW/2-6,-4); ctx.lineTo(PW/2+10,-20); ctx.stroke();
+  // Hands
+  ctx.fillStyle='#88dd22';
+  ctx.beginPath(); ctx.arc(-PW/2-10,-22,7,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(PW/2+10,-22,7,0,Math.PI*2); ctx.fill();
+
+  ctx.restore();
+}
+
+function drawFallers(){
+  for(const f of fallers){
+    ctx.save();
+    ctx.translate(f.x, f.y);
+    ctx.rotate(f.rot);
+    // Shadow
+    ctx.fillStyle='rgba(0,0,0,0.15)';
+    ctx.beginPath(); ctx.ellipse(0,f.h/2+2,f.w/2,5,0,0,Math.PI*2); ctx.fill();
+    // Glow for good items
+    if(!f.bad){
+      ctx.shadowColor=f.color; ctx.shadowBlur=14;
+    }
+    ctx.font=`${f.w}px serif`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(f.emoji, 0, 0);
+    ctx.shadowBlur=0;
+    // Speed trail for fast items
+    if(f.vy>200){
+      ctx.globalAlpha=0.2;
+      ctx.font=`${f.w*0.7}px serif`;
+      ctx.fillText(f.emoji, 0, -f.h*0.7);
+      ctx.globalAlpha=0.1;
+      ctx.fillText(f.emoji, 0, -f.h*1.3);
+      ctx.globalAlpha=1;
+    }
+    ctx.restore();
+  }
+}
+
+function drawParticles(){
+  for(const p of particles){
+    ctx.save();
+    ctx.globalAlpha=Math.max(0,p.life);
+    ctx.fillStyle=p.color;
+    ctx.shadowColor=p.color; ctx.shadowBlur=6;
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.r*p.life,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawCatchFlash(){
+  if(catchFlash===0) return;
+  if(catchFlash>0){
+    // Green catch flash
+    ctx.fillStyle=`rgba(100,255,60,${catchFlash*0.3})`;
+    ctx.fillRect(0,0,W,H);
+    // Sparkles at top of player
+    ctx.save();
+    ctx.font='28px serif'; ctx.textAlign='center';
+    ctx.globalAlpha=catchFlash;
+    ctx.fillText('✨',px-40,py-60);
+    ctx.fillText('✨',px+40,py-60);
+    ctx.fillText('✨',px,py-80);
+    ctx.restore();
+  } else {
+    // Red miss flash
+    ctx.fillStyle=`rgba(255,30,30,${Math.abs(catchFlash)*0.35})`;
+    ctx.fillRect(0,0,W,H);
+  }
+}
+
+// Progress bar showing parts collected
+function drawProgressBar(){
+  const bw=Math.min(W*0.7,320), bh=14;
+  const bx=(W-bw)/2, by=H-30;
+  ctx.fillStyle='rgba(0,0,0,0.4)';
+  ctx.beginPath(); ctx.roundRect(bx,by,bw,bh,7); ctx.fill();
+  const pct=partsCaught/partsNeeded;
+  const grad=ctx.createLinearGradient(bx,0,bx+bw,0);
+  grad.addColorStop(0,'#44cc00'); grad.addColorStop(1,'#aaff44');
+  ctx.fillStyle=grad;
+  ctx.beginPath(); ctx.roundRect(bx,by,bw*pct,bh,7); ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,0.4)'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.roundRect(bx,by,bw,bh,7); ctx.stroke();
+  // Little apple icons along bar
+  ctx.font='12px serif'; ctx.textAlign='center';
+  for(let i=0;i<partsNeeded;i++){
+    const ix=bx+(i+0.5)*(bw/partsNeeded);
+    ctx.globalAlpha=i<partsCaught?1:0.3;
+    ctx.fillText('🍏',ix,by+bh-1);
+  }
+  ctx.globalAlpha=1;
+}
+
+function draw(){
+  drawBackground();
+  drawFallers();
+  drawParticles();
+  drawPlayer();
+  drawCatchFlash();
+  drawProgressBar();
+}
+
+// ── Overlay / Messages ────────────────────────────────────────────────────
+function showOverlay(title,body,btnText,onBtn){
+  const ov=document.getElementById('overlay');
+  ov.innerHTML=`
+    <h1>${title}</h1>
+    <p style="color:#ffeeaa;font-size:1.1rem;white-space:pre-line;text-align:center;margin:12px 0;">${body}</p>
+    <button class="btn" id="ovBtn">${btnText}</button>
+  `;
+  ov.style.display='flex';
+  document.getElementById('ovBtn').addEventListener('click',()=>{ ov.style.display='none'; onBtn(); });
+}
+function showMsg(text){
+  const el=document.getElementById('msg');
+  el.textContent=text; el.style.opacity='1';
+  clearTimeout(msgTimer);
+  msgTimer=setTimeout(()=>el.style.opacity='0',1800);
+}
+
+// ── Loop ──────────────────────────────────────────────────────────────────
+function loop(now){
+  const dt=Math.min((now-lastTime)/1000,0.05);
+  lastTime=now;
+  try{ update(dt); draw(); }catch(e){ console.error(e); }
+  requestAnimationFrame(loop);
+}
+
+document.getElementById('startBtn').addEventListener('click',()=>{
+  ensureAudio();
+  document.getElementById('overlay').style.display='none';
+  startGame();
+});
+
+requestAnimationFrame(t=>{ lastTime=t; requestAnimationFrame(loop); });
+</script>
+</body>
+</html>

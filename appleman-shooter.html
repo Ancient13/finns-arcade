@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Apple Man Shooter!</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@700&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1a3a0a;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Fredoka One', cursive;
+    overflow: hidden;
+    user-select: none;
+  }
+  #title {
+    color: #ffee44;
+    font-size: 2rem;
+    letter-spacing: 3px;
+    text-shadow: 0 0 16px #88cc00, 0 3px 0 #336600;
+    margin-bottom: 8px;
+  }
+  #hud {
+    display: flex;
+    gap: 30px;
+    margin-bottom: 8px;
+    font-size: 1.3rem;
+  }
+  #score-display { color: #ffee44; text-shadow: 0 2px 0 #886600; }
+  #lives-display { color: #ff4444; }
+  #level-display { color: #aaffaa; text-shadow: 0 2px 0 #336600; }
+  canvas {
+    border: 3px solid #336600;
+    box-shadow: 0 0 30px #88cc0055;
+    border-radius: 8px;
+    max-width: 100%;
+    cursor: crosshair;
+  }
+  #overlay {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.88);
+    z-index: 10;
+  }
+  #overlay h2 {
+    font-family: 'Fredoka One', cursive;
+    font-size: 3rem;
+    color: #ffee44;
+    text-shadow: 0 0 20px #88cc00, 0 4px 0 #336600;
+    margin-bottom: 12px;
+  }
+  #overlay p {
+    font-family: 'Nunito', sans-serif;
+    font-size: 1.1rem;
+    color: #aaa;
+    margin-bottom: 6px;
+  }
+  .play-btn {
+    margin-top: 20px;
+    padding: 14px 44px;
+    font-family: 'Fredoka One', cursive;
+    font-size: 1.8rem;
+    letter-spacing: 2px;
+    background: linear-gradient(135deg, #336600, #66bb00);
+    color: #fff;
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    box-shadow: 0 6px 0 #224400, 0 0 20px #88cc0066;
+    transition: transform 0.1s;
+  }
+  .play-btn:hover { transform: scale(1.07); }
+</style>
+</head>
+<body>
+
+<div id="title">🍎 APPLE MAN SHOOTER 🍎</div>
+<div id="hud">
+  <span id="score-display">SCORE: 0</span>
+  <span id="lives-display">❤️❤️❤️</span>
+  <span id="level-display">LEVEL: 1</span>
+</div>
+<canvas id="game" width="480" height="480"></canvas>
+
+<div id="overlay">
+  <h2>🍎 APPLE MAN! 🍎</h2>
+  <p style="color:#aaffaa;font-size:1.2rem;">Logs are falling from the sky!</p>
+  <p style="color:#ffee44;">Shoot them before they hit the ground!</p>
+  <button class="play-btn" id="startBtn">▶ PLAY!</button>
+  <p style="margin-top:12px;font-size:0.85rem;color:#666;">Move mouse to aim · Click to shoot</p>
+</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+// --- Audio ---
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+function playPiooh() {
+  try {
+    ensureAudio();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1300, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(180, audioCtx.currentTime + 0.18);
+    gain.gain.setValueAtTime(0.35, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.22);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.25);
+  } catch(e) {}
+}
+function playThud() {
+  try {
+    ensureAudio();
+    const bufferSize = audioCtx.sampleRate * 0.12;
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = (Math.random()*2-1) * Math.exp(-i/bufferSize*12);
+    const src = audioCtx.createBufferSource();
+    src.buffer = buffer;
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+    src.connect(gain); gain.connect(audioCtx.destination);
+    src.start();
+  } catch(e) {}
+}
+
+// --- State ---
+let score = 0, lives = 3, level = 1, running = false;
+let logs = [], bullets = [], particles = [], clouds = [];
+let frameCount = 0;
+
+// Clouds for background
+for (let i = 0; i < 5; i++) {
+  clouds.push({ x: Math.random()*480, y: 40+Math.random()*80, w: 60+Math.random()*60, speed: 0.2+Math.random()*0.3 });
+}
+
+const player = { x: 240, y: 440 };
+
+document.getElementById('startBtn').addEventListener('click', () => { ensureAudio(); startGame(); });
+
+function startGame() {
+  score = 0; lives = 3; level = 1;
+  logs = []; bullets = []; particles = [];
+  frameCount = 0;
+  document.getElementById('overlay').style.display = 'none';
+  running = true;
+  requestAnimationFrame(loop);
+}
+
+function spawnLog() {
+  const x = 80 + Math.random() * (480 - 160);
+  const speed = 0.8 + level * 0.3 + Math.random() * 0.5;
+  const rot = (Math.random() - 0.5) * 0.05;
+  logs.push({ x, y: -40, speed, hit: false, alpha: 1, angle: Math.random()*Math.PI*2, rot });
+}
+
+function shoot(mx, my) {
+  if (!running) return;
+  const handX = player.x - 18, handY = player.y - 58;
+  const angle = Math.atan2(my - handY, mx - handX);
+  const spd = 13;
+  bullets.push({ x: handX, y: handY, vx: Math.cos(angle)*spd, vy: Math.sin(angle)*spd });
+  playPiooh();
+}
+
+canvas.addEventListener('click', (e) => {
+  const r = canvas.getBoundingClientRect();
+  shoot((e.clientX - r.left)*(480/r.width), (e.clientY - r.top)*(480/r.height));
+});
+canvas.addEventListener('mousemove', (e) => {
+  const r = canvas.getBoundingClientRect();
+  player.x = Math.max(40, Math.min(440, (e.clientX - r.left)*(480/r.width)));
+});
+
+function spawnParticles(x, y) {
+  const colors = ['#8B4513','#A0522D','#D2691E','#6B3410','#ffee44','#88cc00'];
+  for (let i = 0; i < 18; i++) {
+    const a = Math.random()*Math.PI*2, spd = 2+Math.random()*6;
+    particles.push({ x, y, vx: Math.cos(a)*spd, vy: Math.sin(a)*spd, life: 1, color: colors[Math.floor(Math.random()*colors.length)], r: 2+Math.random()*5 });
+  }
+}
+
+// Draw a falling log
+function drawLog(x, y, alpha, angle) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+
+  const logW = 52, logH = 28;
+
+  // Main log body
+  const grad = ctx.createLinearGradient(-logW/2, -logH/2, logW/2, logH/2);
+  grad.addColorStop(0, '#8B4513');
+  grad.addColorStop(0.4, '#A0522D');
+  grad.addColorStop(0.7, '#7a3a10');
+  grad.addColorStop(1, '#5C2E0A');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.roundRect(-logW/2, -logH/2, logW, logH, logH/2);
+  ctx.fill();
+
+  // Bark lines
+  ctx.strokeStyle = '#5C2E0A';
+  ctx.lineWidth = 1.2;
+  for (let i = -14; i <= 14; i += 7) {
+    ctx.beginPath();
+    ctx.moveTo(i, -logH/2 + 4);
+    ctx.quadraticCurveTo(i + 3, 0, i, logH/2 - 4);
+    ctx.stroke();
+  }
+
+  // Left end circle (tree ring)
+  ctx.fillStyle = '#6B3410';
+  ctx.beginPath(); ctx.ellipse(-logW/2 + 2, 0, 6, logH/2 - 2, 0, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = '#8B4513'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.ellipse(-logW/2 + 2, 0, 4, logH/2 - 4, 0, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(-logW/2 + 2, 0, 2, logH/2 - 7, 0, 0, Math.PI*2); ctx.stroke();
+
+  // Right end circle
+  ctx.fillStyle = '#6B3410';
+  ctx.beginPath(); ctx.ellipse(logW/2 - 2, 0, 6, logH/2 - 2, 0, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = '#8B4513'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.ellipse(logW/2 - 2, 0, 4, logH/2 - 4, 0, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(logW/2 - 2, 0, 2, logH/2 - 7, 0, 0, Math.PI*2); ctx.stroke();
+
+  // Highlight sheen
+  ctx.fillStyle = 'rgba(255,255,255,0.08)';
+  ctx.beginPath(); ctx.ellipse(0, -logH/2 + 5, logW/2 - 8, 4, 0, 0, Math.PI); ctx.fill();
+
+  ctx.restore();
+}
+
+// Draw Apple Man player
+function drawAppleMan() {
+  const px = player.x, py = player.y;
+  ctx.save();
+  ctx.translate(px, py);
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.beginPath(); ctx.ellipse(0, 28, 18, 5, 0, 0, Math.PI*2); ctx.fill();
+
+  // Legs
+  ctx.fillStyle = '#228B22';
+  ctx.beginPath(); ctx.roundRect(-12, 8, 10, 16, 4); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(2, 8, 10, 16, 4); ctx.fill();
+  // Boots
+  ctx.fillStyle = '#5C3A1A';
+  ctx.beginPath(); ctx.ellipse(-7, 24, 9, 5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(7, 24, 9, 5, 0, 0, Math.PI*2); ctx.fill();
+
+  // Body - apple shape (red round body)
+  const bodyGrad = ctx.createRadialGradient(-6, -20, 2, 0, -15, 24);
+  bodyGrad.addColorStop(0, '#ff6666');
+  bodyGrad.addColorStop(0.5, '#dd1111');
+  bodyGrad.addColorStop(1, '#880000');
+  ctx.fillStyle = bodyGrad;
+  ctx.beginPath(); ctx.ellipse(0, -10, 22, 26, 0, 0, Math.PI*2); ctx.fill();
+
+  // Apple shine
+  ctx.fillStyle = 'rgba(255,255,255,0.25)';
+  ctx.beginPath(); ctx.ellipse(-8, -22, 7, 5, -0.5, 0, Math.PI*2); ctx.fill();
+
+  // Apple stem
+  ctx.strokeStyle = '#5C3A1A'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(2, -34); ctx.quadraticCurveTo(8, -42, 4, -46); ctx.stroke();
+
+  // Leaf
+  ctx.fillStyle = '#44aa00';
+  ctx.beginPath();
+  ctx.moveTo(4, -42); ctx.quadraticCurveTo(16, -46, 14, -38); ctx.quadraticCurveTo(8, -38, 4, -42);
+  ctx.fill();
+
+  // Face
+  // Eyes
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.ellipse(-7, -14, 5, 6, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(7, -14, 5, 6, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#222';
+  ctx.beginPath(); ctx.ellipse(-7, -13, 2.5, 3, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(7, -13, 2.5, 3, 0, 0, Math.PI*2); ctx.fill();
+  // Eye shine
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(-6, -14, 1, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(8, -14, 1, 0, Math.PI*2); ctx.fill();
+  // Smile
+  ctx.strokeStyle = '#550000'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(0, -8, 7, 0.2, Math.PI-0.2); ctx.stroke();
+  // Rosy cheeks
+  ctx.fillStyle = 'rgba(255,150,150,0.4)';
+  ctx.beginPath(); ctx.ellipse(-12, -10, 5, 3, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(12, -10, 5, 3, 0, 0, Math.PI*2); ctx.fill();
+
+  // Right arm raised to shoot
+  ctx.save();
+  ctx.translate(-20, -12);
+  ctx.rotate(-1.1);
+  ctx.fillStyle = '#dd1111';
+  ctx.beginPath(); ctx.roundRect(-5, -20, 10, 22, 5); ctx.fill();
+  // hand (little apple fist)
+  ctx.fillStyle = '#ff4444';
+  ctx.beginPath(); ctx.ellipse(0, -22, 6, 6, 0, 0, Math.PI*2); ctx.fill();
+  // shooting glow
+  ctx.shadowColor = '#ffee44'; ctx.shadowBlur = 14;
+  ctx.fillStyle = '#ffee44';
+  ctx.beginPath(); ctx.ellipse(0, -27, 3, 3, 0, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.restore();
+
+  // Left arm down
+  ctx.fillStyle = '#dd1111';
+  ctx.beginPath(); ctx.roundRect(14, -18, 10, 20, 5); ctx.fill();
+  ctx.fillStyle = '#ff4444';
+  ctx.beginPath(); ctx.ellipse(19, 4, 6, 6, 0, 0, Math.PI*2); ctx.fill();
+
+  ctx.restore();
+}
+
+function drawBackground() {
+  // Sky gradient
+  const sky = ctx.createLinearGradient(0, 0, 0, 480);
+  sky.addColorStop(0, '#87CEEB');
+  sky.addColorStop(0.6, '#c8f0a0');
+  sky.addColorStop(1, '#5a8a20');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, 480, 480);
+
+  // Clouds
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  for (let c of clouds) {
+    c.x += c.speed;
+    if (c.x > 580) c.x = -100;
+    ctx.beginPath();
+    ctx.ellipse(c.x, c.y, c.w/2, 18, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(c.x - 20, c.y + 5, c.w/3, 14, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(c.x + 22, c.y + 5, c.w/3, 14, 0, 0, Math.PI*2); ctx.fill();
+  }
+
+  // Ground strip
+  const ground = ctx.createLinearGradient(0, 420, 0, 480);
+  ground.addColorStop(0, '#5a8a20');
+  ground.addColorStop(1, '#3a5a10');
+  ctx.fillStyle = ground;
+  ctx.fillRect(0, 455, 480, 25);
+
+  // Grass tufts
+  ctx.fillStyle = '#4a7a18';
+  for (let gx = 10; gx < 480; gx += 22) {
+    ctx.beginPath();
+    ctx.moveTo(gx, 455);
+    ctx.quadraticCurveTo(gx+4, 444, gx+8, 455);
+    ctx.fill();
+  }
+}
+
+function loop() {
+  if (!running) return;
+  frameCount++;
+
+  const spawnRate = Math.max(60 - level*6, 22);
+  if (frameCount % spawnRate === 0) spawnLog();
+  if (score > 0 && score % 150 === 0 && frameCount % 2 === 0) level = Math.min(Math.floor(score/150)+1, 10);
+
+  drawBackground();
+
+  // Logs
+  for (let i = logs.length-1; i >= 0; i--) {
+    const l = logs[i];
+    l.y += l.speed;
+    l.angle += l.rot;
+    if (l.hit) { l.alpha -= 0.07; if (l.alpha <= 0) { logs.splice(i,1); continue; } }
+    else if (l.y > 470) { lives--; logs.splice(i,1); if (lives <= 0) { gameOver(); return; } continue; }
+    drawLog(l.x, l.y, l.alpha, l.angle);
+  }
+
+  // Bullets
+  for (let i = bullets.length-1; i >= 0; i--) {
+    const b = bullets[i];
+    b.x += b.vx; b.y += b.vy;
+    if (b.x<0||b.x>480||b.y<0||b.y>480) { bullets.splice(i,1); continue; }
+    let hit = false;
+    for (let l of logs) {
+      if (!l.hit && Math.abs(b.x-l.x)<34 && Math.abs(b.y-l.y)<18) {
+        l.hit = true; spawnParticles(l.x,l.y); playThud(); score += 10; hit = true; break;
+      }
+    }
+    if (hit) { bullets.splice(i,1); continue; }
+    // Apple seed bullet
+    ctx.save();
+    ctx.shadowColor = '#ffee44'; ctx.shadowBlur = 10;
+    ctx.fillStyle = '#ffcc00';
+    ctx.beginPath(); ctx.ellipse(b.x, b.y, 5, 3, Math.atan2(b.vy, b.vx), 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+
+  // Particles
+  for (let i = particles.length-1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx; p.y += p.vy; p.vy += 0.2; p.life -= 0.03;
+    if (p.life<=0) { particles.splice(i,1); continue; }
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.r*p.life,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  drawAppleMan();
+
+  document.getElementById('score-display').textContent = 'SCORE: '+score;
+  document.getElementById('lives-display').textContent = '❤️'.repeat(Math.max(0,lives));
+  document.getElementById('level-display').textContent = 'LEVEL: '+level;
+
+  requestAnimationFrame(loop);
+}
+
+function gameOver() {
+  running = false;
+  const ov = document.getElementById('overlay');
+  ov.style.display = 'flex';
+  ov.innerHTML = `
+    <h2>TIMBER!!! 🪵</h2>
+    <p style="color:#ffee44;font-size:1.5rem;font-family:'Fredoka One',cursive;">SCORE: ${score}</p>
+    <p style="color:#aaa;font-family:'Nunito',sans-serif;">The logs got Apple Man...</p>
+    <button class="play-btn" onclick="ensureAudio();startGame()">▶ TRY AGAIN!</button>
+  `;
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,1177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Mr. Cupcake's House!</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#000; overflow:hidden; font-family:'Arial Black',sans-serif; touch-action:none; }
+  #c { display:block; }
+  #ui {
+    position:fixed; top:8px; left:0; right:0;
+    display:flex; justify-content:center; gap:10px; flex-wrap:wrap;
+    pointer-events:none; z-index:10;
+  }
+  .ui-box {
+    background:rgba(0,0,0,0.7); border:2px solid #ffaacc;
+    border-radius:8px; padding:4px 12px;
+    color:#ffd700; font-size:1rem; letter-spacing:1px;
+  }
+  #msg {
+    position:fixed; top:36%; left:50%; transform:translate(-50%,-50%);
+    color:#ffd700; font-size:1.6rem; font-weight:900;
+    text-shadow:0 0 20px #ff8800; white-space:pre-line;
+    pointer-events:none; opacity:0; transition:opacity 0.4s;
+    z-index:20; text-align:center; background:rgba(0,0,0,0.5);
+    padding:10px 20px; border-radius:12px;
+  }
+  #crosshair {
+    position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+    color:rgba(255,255,255,0.9); font-size:1.6rem; pointer-events:none; z-index:10;
+  }
+  #joystick-zone {
+    position:fixed; bottom:24px; left:24px;
+    width:110px; height:110px; z-index:15;
+  }
+  #joystick-base {
+    width:110px; height:110px; border-radius:50%;
+    background:rgba(255,255,255,0.12); border:2px solid rgba(255,170,200,0.5);
+    position:absolute;
+  }
+  #joystick-knob {
+    width:44px; height:44px; border-radius:50%;
+    background:radial-gradient(circle at 35% 35%, #ffbbdd, #cc2266);
+    border:2px solid #ff66aa; position:absolute; top:33px; left:33px;
+    box-shadow:0 0 10px #ff44aa88;
+  }
+  #look-zone {
+    position:fixed; bottom:0; right:0;
+    width:55%; height:100%; z-index:14;
+  }
+  #eat-btn {
+    position:fixed; bottom:34px; right:110px;
+    width:65px; height:65px; border-radius:50%;
+    background:radial-gradient(circle at 35% 35%, #ffee88, #cc8800);
+    border:3px solid #ffd700; font-size:1.6rem;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer; z-index:15; box-shadow:0 0 16px #ffaa0088;
+    user-select:none;
+  }
+  #climb-btn {
+    position:fixed; bottom:34px; right:34px;
+    width:65px; height:65px; border-radius:50%;
+    background:radial-gradient(circle at 35% 35%, #88eeaa, #008844);
+    border:3px solid #44ff88; font-size:1.6rem;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer; z-index:15; box-shadow:0 0 16px #44ff8888;
+    user-select:none;
+  }
+  #shoot-btn {
+    position:fixed; bottom:120px; right:34px;
+    width:65px; height:65px; border-radius:50%;
+    background:radial-gradient(circle at 35% 35%, #ff8888, #cc0000);
+    border:3px solid #ff4444; font-size:1.6rem;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer; z-index:15; box-shadow:0 0 16px #ff000088;
+    user-select:none; display:none;
+  }
+  #boss-hp {
+    position:fixed; top:60px; left:50%; transform:translateX(-50%);
+    width:280px; display:none; z-index:15;
+    text-align:center; pointer-events:none;
+  }
+  #boss-hp-label { color:#ff4444; font-size:0.9rem; font-weight:900; margin-bottom:4px; }
+  #boss-hp-bar-bg { background:rgba(0,0,0,0.6); border:2px solid #ff4444; border-radius:6px; height:18px; }
+  #boss-hp-bar { background:linear-gradient(90deg,#cc0000,#ff4444); height:100%; border-radius:4px; transition:width 0.2s; }
+  #overlay {
+    position:fixed; inset:0;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:rgba(0,0,0,0.93); z-index:30;
+  }
+  #overlay h1 { color:#ffaacc; font-size:2.4rem; text-shadow:0 0 20px #ff4499; margin-bottom:8px; text-align:center; }
+  #overlay p { color:#ffeeaa; font-size:1rem; margin:3px 0; text-align:center; }
+  .btn {
+    margin-top:16px; padding:12px 36px; font-size:1.4rem; font-weight:900;
+    background:linear-gradient(135deg,#cc2266,#ff66aa);
+    color:#fff; border:none; border-radius:50px; cursor:pointer;
+    box-shadow:0 0 20px #ff4499; letter-spacing:2px;
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <div class="ui-box" id="score-box">🍰 0</div>
+  <div class="ui-box" id="house-box">🏠 1/6</div>
+  <div class="ui-box" id="floor-box">📶 Floor 1/3</div>
+  <div class="ui-box" id="food-box">🍕 Left: 0</div>
+  <div class="ui-box" id="hp-box">❤️ HP: 100</div>
+</div>
+<div id="crosshair">·</div>
+<div id="msg"></div>
+<div id="boss-hp">
+  <div id="boss-hp-label">👿 EVIL CUPCAKE BOSS</div>
+  <div id="boss-hp-bar-bg"><div id="boss-hp-bar" style="width:100%"></div></div>
+</div>
+<div id="joystick-zone"><div id="joystick-base"></div><div id="joystick-knob"></div></div>
+<div id="look-zone"></div>
+<div id="eat-btn">😋</div>
+<div id="climb-btn">🪜</div>
+<div id="shoot-btn">🔥</div>
+
+<div id="overlay">
+  <h1>🧁 MR. CUPCAKE 🧁</h1>
+  <p style="color:#ffaacc;font-size:1.2rem;margin-bottom:6px;">"Every day's a birthday party!"</p>
+  <p>3 houses · 3 floors each · attic on every house</p>
+  <p style="color:#ff4444;font-weight:900;margin-top:6px;">⚠️ Evil Cupcake Boss awaits in House 3!</p>
+  <p style="color:#aaa;font-size:0.85rem;margin-top:8px;">🕹️ Joystick=move · Right drag=look · 😋=eat · 🪜=climb · 🔥=shoot(boss)</p>
+  <button class="btn" id="startBtn">▶ START EATING!</button>
+</div>
+
+<script>
+// ===================== CANVAS =====================
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+function resize(){ canvas.width=window.innerWidth; canvas.height=window.innerHeight; }
+resize(); window.addEventListener('resize',resize);
+
+// ===================== MAPS =====================
+// 3 floor maps per house + 1 attic map, 3 houses
+// map cells: 0=empty, 1=wall, 2=ladder up, 3=ladder down (handled by position)
+function makeFloor(template){ return template.map(r=>[...r]); }
+
+const FLOOR_TEMPLATES = {
+  simple: [
+    [1,1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,1],
+    [1,0,0,1,0,0,0,0,0,1],
+    [1,0,0,1,0,0,1,0,0,1],
+    [1,0,0,0,0,0,1,0,0,1],
+    [1,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1],
+  ],
+  corridors:[
+    [1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,1,0,0,0,0,0,1],
+    [1,0,1,0,0,1,0,0,1,0,0,1],
+    [1,0,1,0,0,0,0,0,1,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,1,1,1,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,1,0,0,0,0,0,1,0,0,1],
+    [1,0,1,0,0,1,0,0,1,0,0,1],
+    [1,0,0,0,0,1,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1],
+  ],
+  rooms:[
+    [1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,1,0,0,0,0,0,0,1],
+    [1,0,0,0,1,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,1,0,0,0,1],
+    [1,1,0,1,1,0,0,1,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,1,0,0,1,0,0,0,0,1],
+    [1,0,0,1,0,0,1,0,0,1,0,1],
+    [1,0,0,0,0,0,0,0,0,1,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1],
+  ],
+  maze:[
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,1,1,0,1,1,1,0,1,1,0,0,1],
+    [1,0,1,0,0,0,0,1,0,0,1,0,0,1],
+    [1,0,1,0,1,1,0,0,0,0,1,0,0,1],
+    [1,0,0,0,1,0,0,1,1,0,0,0,0,1],
+    [1,0,1,0,0,0,0,1,0,0,1,0,0,1],
+    [1,0,1,1,1,0,0,0,0,0,1,0,0,1],
+    [1,0,0,0,0,0,1,1,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  ],
+  big:[
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,1,1,0,0,1,0,0,1,0,0,1,1,0,1],
+    [1,0,1,0,0,0,1,0,0,1,0,0,0,1,0,1],
+    [1,0,0,0,1,0,0,0,0,0,0,1,0,0,0,1],
+    [1,0,0,0,1,1,0,1,1,0,0,1,0,0,0,1],
+    [1,0,1,0,0,0,0,0,0,0,0,0,0,1,0,1],
+    [1,0,1,0,0,1,0,0,0,1,0,0,0,1,0,1],
+    [1,0,0,0,0,1,1,0,0,1,1,0,0,0,0,1],
+    [1,0,0,1,0,0,0,0,0,0,0,0,1,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  ],
+  attic:[
+    [1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,1,0,0,0,0,0,0,1,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,1,0,0,1,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,1,0,0,1,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,1,0,0,0,0,0,0,1,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1],
+  ],
+  bossAttic:[
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,1,0,0,0,0,0,0,1,0,0,1],
+    [1,0,0,1,0,0,0,0,0,0,1,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,1,0,0,0,0,0,0,1,0,0,1],
+    [1,0,0,1,0,0,0,0,0,0,1,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  ],
+};
+
+// house index 0-5, floor index 0=ground,1=floor2,2=floor3,3=attic
+const HOUSE_CONFIGS = [
+  { floors:['simple','corridors','rooms'],  attic:'attic',    tints:[[204,120,80],[180,100,60],[160,80,40]],  atticTint:[100,80,60] },
+  { floors:['maze','rooms','corridors'],    attic:'attic',    tints:[[80,120,200],[60,100,180],[50,80,160]],  atticTint:[60,60,100] },
+  { floors:['big','maze','big'],            attic:'bossAttic',tints:[[180,30,30],[160,20,20],[140,10,10]],    atticTint:[80,0,0] },
+];
+const FLOOR_NAMES=['Ground','2nd Floor','3rd Floor','Attic'];
+const CEIL_TINTS=['#d4c8b8','#b8c8e0','#3a0000'];
+const FLOOR_TINTS_CSS=['#7a5520','#304060','#1a0000'];
+
+// Ladder positions per floor (hard-coded per template)
+const LADDER_POS = {
+  simple:    {up:[{x:8.5,y:7.5}], down:[{x:8.5,y:7.5}]},
+  corridors: {up:[{x:10.5,y:9.5}],down:[{x:10.5,y:9.5}]},
+  rooms:     {up:[{x:10.5,y:9.5}],down:[{x:10.5,y:9.5}]},
+  maze:      {up:[{x:12.5,y:8.5}],down:[{x:12.5,y:8.5}]},
+  big:       {up:[{x:14.5,y:10.5}],down:[{x:14.5,y:10.5}]},
+  attic:     {up:[],              down:[{x:10.5,y:8.5}]},
+  bossAttic: {up:[],              down:[{x:12.5,y:10.5}]},
+};
+
+// ===================== STATE =====================
+let houseIdx=0, floorIdx=0;
+let map, mapW, mapH;
+let px=1.5, py=1.5, pAngle=0.5;
+let playerHP=100;
+let score=0;
+let running=false, transitioning=false;
+let foods=[], ladders=[];
+let msgTimer=null;
+// Boss state
+let bossActive=false, bossHP=300, bossMaxHP=300;
+let startX=1.5, startY=1.5; // safe spawn position for current floor
+
+function isFree(x,y){
+  if(!map) return false;
+  const mx=Math.floor(x), my=Math.floor(y);
+  if(mx<0||mx>=mapW||my<0||my>=mapH) return false;
+  return map[my] && map[my][mx]===0;
+}
+let eatFlash=0, eatEmoji='', eatPts=0;
+let bossX=7, bossY=5, bossAngle=0, bossTimer=0;
+let bossFireballs=[];
+let playerInvince=0;
+let shootCooldown=0;
+let gameProjectiles=[];
+
+// ===================== FOOD TYPES =====================
+const FOOD_TYPES=[
+  {emoji:'🍕',name:'PIZZA',pts:30,color:'#ff8800'},
+  {emoji:'🍔',name:'BURGER',pts:25,color:'#aa6600'},
+  {emoji:'🍩',name:'DONUT',pts:20,color:'#ff44aa'},
+  {emoji:'🍦',name:'ICE CREAM',pts:15,color:'#aaeeff'},
+  {emoji:'🌮',name:'TACO',pts:20,color:'#ffdd44'},
+  {emoji:'🍰',name:'CAKE',pts:50,color:'#ffbbcc'},
+  {emoji:'🍗',name:'CHICKEN',pts:25,color:'#cc8833'},
+  {emoji:'🍪',name:'COOKIE',pts:10,color:'#cc8833'},
+  {emoji:'🍫',name:'CHOC',pts:15,color:'#663300'},
+  {emoji:'🧁',name:'CUPCAKE',pts:40,color:'#ff66aa'},
+];
+
+// ===================== LOAD FLOOR =====================
+function loadFloor(house, floor) {
+  houseIdx=house; floorIdx=floor;
+  const cfg=HOUSE_CONFIGS[house];
+  const templateName = floor===3 ? cfg.attic : cfg.floors[floor];
+  map=FLOOR_TEMPLATES[templateName].map(r=>[...r]);
+  mapH=map.length; mapW=map[0].length;
+
+  // Place player at start
+  for(let y=1;y<mapH-1;y++) for(let x=1;x<mapW-1;x++) {
+    if(map[y][x]===0){ px=x+0.5; py=y+0.5; break; }
+    if(map[Math.floor(py)][Math.floor(px)]===0) break;
+  }
+  pAngle=0.5;
+
+  // Build ladder list
+  const lp=LADDER_POS[templateName];
+  ladders=[];
+  if(floor<3) lp.up.forEach(l=>ladders.push({x:l.x,y:l.y,dir:'up'}));
+  if(floor>0) lp.down.forEach(l=>ladders.push({x:l.x,y:l.y,dir:'down'}));
+
+  // Boss floor
+  bossActive = (house===2 && floor===3);
+  if(bossActive){
+    bossHP=bossMaxHP=300;
+    bossX=mapW/2; bossY=mapH/2;
+    document.getElementById('boss-hp').style.display='block';
+    document.getElementById('shoot-btn').style.display='flex';
+    spawnFoods(4); // fewer food in boss room
+  } else {
+    document.getElementById('boss-hp').style.display='none';
+    document.getElementById('shoot-btn').style.display='none';
+    spawnFoods(8+houseIdx*2);
+  }
+
+  bossFireballs=[]; gameProjectiles=[];
+  updateUI();
+}
+
+function spawnFoods(count){
+  foods=[];
+  let attempts=0;
+  while(foods.length<count && attempts<2000){
+    attempts++;
+    const x=1+Math.random()*(mapW-2), y=1+Math.random()*(mapH-2);
+    const fy=Math.floor(y),fx=Math.floor(x);
+    if(!map[fy]||map[fy][fx]===undefined||map[fy][fx]!==0) continue;
+    if(Math.hypot(x-px,y-py)<1.5) continue;
+    const t=FOOD_TYPES[Math.floor(Math.random()*FOOD_TYPES.length)];
+    foods.push({x,y,type:t,eaten:false,bob:Math.random()*Math.PI*2,scale:1});
+  }
+}
+
+// ===================== UI =====================
+function updateUI(){
+  const left=foods.filter(f=>!f.eaten).length;
+  document.getElementById('score-box').textContent='🍰 '+score;
+  document.getElementById('house-box').textContent='🏠 '+(houseIdx+1)+'/3';
+  document.getElementById('floor-box').textContent='📶 '+FLOOR_NAMES[floorIdx];
+  document.getElementById('food-box').textContent=(left>0?'🍕':'✅')+' '+left;
+  document.getElementById('hp-box').textContent='❤️ '+playerHP;
+  if(bossActive){
+    document.getElementById('boss-hp-bar').style.width=Math.max(0,bossHP/bossMaxHP*100)+'%';
+  }
+}
+
+// ===================== RAYCASTER =====================
+function castRay(angle){
+  // DDA algorithm - fast and accurate, no stepping artefacts
+  const cosA = Math.cos(angle), sinA = Math.sin(angle);
+  let mapX = Math.floor(px), mapY = Math.floor(py);
+
+  const deltaDistX = cosA === 0 ? 1e30 : Math.abs(1/cosA);
+  const deltaDistY = sinA === 0 ? 1e30 : Math.abs(1/sinA);
+
+  let stepX, stepY, sideDistX, sideDistY;
+  if(cosA < 0){ stepX=-1; sideDistX=(px-mapX)*deltaDistX; }
+  else         { stepX= 1; sideDistX=(mapX+1-px)*deltaDistX; }
+  if(sinA < 0){ stepY=-1; sideDistY=(py-mapY)*deltaDistY; }
+  else         { stepY= 1; sideDistY=(mapY+1-py)*deltaDistY; }
+
+  let side=0, hit=false;
+  for(let i=0;i<64&&!hit;i++){
+    if(sideDistX < sideDistY){ sideDistX+=deltaDistX; mapX+=stepX; side=0; }
+    else                      { sideDistY+=deltaDistY; mapY+=stepY; side=1; }
+    if(mapX<0||mapX>=mapW||mapY<0||mapY>=mapH) break;
+    if(map[mapY] && map[mapY][mapX]!==0) hit=true;
+  }
+  const dist = side===0
+    ? Math.max(0.4,(mapX - px + (1-stepX)/2)/cosA)
+    : Math.max(0.4,(mapY - py + (1-stepY)/2)/sinA);
+  return {dist, side};
+}
+
+function drawScene(){
+  if(!map||!mapW||!mapH) return;
+  const W=canvas.width,H=canvas.height;
+  const cfg=HOUSE_CONFIGS[houseIdx];
+  const tintArr=floorIdx===3?cfg.atticTint:cfg.tints[floorIdx];
+  const floorCSS=floorIdx===3?FLOOR_TINTS_CSS[houseIdx]:FLOOR_TINTS_CSS[houseIdx];
+  const ceilCSS=CEIL_TINTS[houseIdx];
+
+  // Ceiling
+  ctx.fillStyle=ceilCSS; ctx.fillRect(0,0,W,H/2);
+  // Floor
+  ctx.fillStyle=floorCSS; ctx.fillRect(0,H/2,W,H/2);
+
+  // Shading gradients
+  for(let y=H/2;y<H;y+=2){
+    ctx.fillStyle=`rgba(0,0,0,${((y-H/2)/(H/2))*0.55})`;
+    ctx.fillRect(0,y,W,2);
+  }
+  for(let y=0;y<H/2;y+=2){
+    ctx.fillStyle=`rgba(0,0,0,${(1-y/(H/2))*0.4})`;
+    ctx.fillRect(0,y,W,2);
+  }
+
+  const FOV=Math.PI/2.2;
+  const numRays=Math.floor(W/1.4);
+  const zBuf=new Float32Array(numRays);
+
+  for(let i=0;i<numRays;i++){
+    const ra=pAngle-FOV/2+(i/numRays)*FOV;
+    const {dist,side}=castRay(ra);
+    // DDA already removes fish-eye, just multiply for perpendicular distance
+    const perp=Math.max(0.4, dist*Math.cos(ra-pAngle));
+    zBuf[i]=perp;
+    const wallH=Math.min(H*2, H/perp);
+    const top=(H-wallH)/2;
+    const bright=Math.max(0,Math.min(1,1-perp/12))*(side?0.7:1);
+    const r=Math.floor(tintArr[0]*bright);
+    const g=Math.floor(tintArr[1]*bright);
+    const b=Math.floor(tintArr[2]*bright);
+    ctx.fillStyle=`rgb(${r},${g},${b})`;
+    ctx.fillRect(i*W/numRays,top,Math.ceil(W/numRays)+1,wallH);
+  }
+
+  // Collect all sprites
+  const sprites=[];
+  // Food
+  foods.filter(f=>!f.eaten).forEach(f=>{
+    const dx=f.x-px,dy=f.y-py;
+    sprites.push({type:'food',obj:f,dist:Math.hypot(dx,dy),dx,dy});
+  });
+  // Ladders
+  ladders.forEach(l=>{
+    const dx=l.x-px,dy=l.y-py;
+    sprites.push({type:'ladder',obj:l,dist:Math.hypot(dx,dy),dx,dy});
+  });
+  // Boss
+  if(bossActive){
+    const dx=bossX-px,dy=bossY-py;
+    sprites.push({type:'boss',dist:Math.hypot(dx,dy),dx,dy});
+  }
+  // Boss fireballs
+  bossFireballs.forEach(fb=>{
+    const dx=fb.x-px,dy=fb.y-py;
+    sprites.push({type:'fireball',obj:fb,dist:Math.hypot(dx,dy),dx,dy});
+  });
+  // Player projectiles
+  gameProjectiles.forEach(p=>{
+    const dx=p.x-px,dy=p.y-py;
+    sprites.push({type:'proj',obj:p,dist:Math.hypot(dx,dy),dx,dy});
+  });
+
+  sprites.sort((a,b)=>b.dist-a.dist);
+
+  for(const sp of sprites){ try{
+    if(sp.dist>12) continue;
+    const sprAngle=Math.atan2(sp.dy,sp.dx);
+    let diff=sprAngle-pAngle;
+    while(diff>Math.PI) diff-=Math.PI*2;
+    while(diff<-Math.PI) diff+=Math.PI*2;
+    if(Math.abs(diff)>FOV*0.68) continue;
+    const screenX=((diff/FOV)+0.5)*W;
+    const col=Math.floor((screenX/W)*numRays);
+    if(col<0||col>=numRays||zBuf[col]<sp.dist) continue;
+
+    if(sp.type==='food'){
+      const f=sp.obj;
+      const sH=Math.min(H*0.85,H/sp.dist*0.7);
+      const bob=Math.sin(f.bob)*5;
+      const sTop=H/2-sH/2+bob;
+      // Glow
+      const grd=ctx.createRadialGradient(screenX,sTop+sH*.5,sH*.05,screenX,sTop+sH*.5,sH*.55);
+      grd.addColorStop(0,f.type.color+'cc'); grd.addColorStop(1,f.type.color+'00');
+      ctx.fillStyle=grd;
+      ctx.beginPath(); ctx.arc(screenX,sTop+sH*.5,sH*.55,0,Math.PI*2); ctx.fill();
+      ctx.font=`${Math.max(10,Math.floor(sH*.65))}px serif`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(f.type.emoji,screenX,sTop+sH*.5);
+      if(sp.dist<2.2){
+        ctx.fillStyle='#ffd700';
+        ctx.font=`bold ${Math.max(8,Math.floor(sH*.2))}px Arial Black`;
+        ctx.fillText('+'+f.type.pts,screenX,sTop-4);
+      }
+    } else if(sp.type==='ladder'){
+      const l=sp.obj;
+      const sH=Math.min(H*0.9,H/sp.dist*0.9);
+      const sTop=H/2-sH/2;
+      ctx.font=`${Math.max(12,Math.floor(sH*.7))}px serif`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(l.dir==='up'?'🪜⬆️':'🪜⬇️',screenX,sTop+sH*.5);
+      if(sp.dist<1.8){
+        ctx.fillStyle='#88ff88';
+        ctx.font=`bold ${Math.max(8,Math.floor(sH*.18))}px Arial Black`;
+        ctx.fillText(l.dir==='up'?'CLIMB UP':'CLIMB DOWN',screenX,sTop-4);
+      }
+    } else if(sp.type==='boss'){
+      const sH=Math.min(H*1.1,H/sp.dist*1.1);
+      const sTop=H/2-sH/2;
+      drawBossSprite(screenX,sTop,sH);
+    } else if(sp.type==='fireball'){
+      const sH=Math.max(10,Math.min(H*.4,H/sp.dist*0.3));
+      ctx.font=`${Math.floor(sH)}px serif`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('🔥',screenX,H/2);
+    } else if(sp.type==='proj'){
+      const sH=Math.max(8,Math.min(H*.3,H/sp.dist*0.25));
+      ctx.font=`${Math.floor(sH)}px serif`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('⭐',screenX,H/2);
+    }
+  } catch(e){} }
+
+  // Eat flash effect
+  if(eatFlash>0){
+    const ef=eatFlash/1.2;
+    ctx.save();
+    // Green munch flash at edges
+    ctx.fillStyle=`rgba(100,255,100,${ef*0.25})`;
+    ctx.fillRect(0,0,W,H);
+    // Big emoji + points burst in centre
+    const sz=Math.floor(60+ef*80);
+    ctx.font=sz+'px serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.globalAlpha=Math.min(1,ef*2);
+    ctx.fillText(eatEmoji, W/2, H/2-sz*0.3);
+    ctx.font=`bold ${Math.floor(sz*0.55)}px Arial Black`;
+    ctx.fillStyle='#ffd700';
+    ctx.strokeStyle='#000';
+    ctx.lineWidth=4;
+    ctx.strokeText('+'+eatPts+'!', W/2, H/2+sz*0.4);
+    ctx.fillText('+'+eatPts+'!', W/2, H/2+sz*0.4);
+    ctx.globalAlpha=1;
+    ctx.restore();
+  }
+
+  // Vignette
+  const vig=ctx.createRadialGradient(W/2,H/2,H*.25,W/2,H/2,H*.85);
+  vig.addColorStop(0,'rgba(0,0,0,0)'); vig.addColorStop(1,'rgba(0,0,0,0.5)');
+  ctx.fillStyle=vig; ctx.fillRect(0,0,W,H);
+
+  // Boss floor red tint
+  if(houseIdx===2&&floorIdx===3){
+    ctx.fillStyle='rgba(80,0,0,0.15)';
+    ctx.fillRect(0,0,W,H);
+  }
+
+  // Player invincibility flash
+  if(playerInvince>0&&Math.floor(playerInvince*10)%2===0){
+    ctx.fillStyle='rgba(255,0,0,0.2)';
+    ctx.fillRect(0,0,W,H);
+  }
+}
+
+// ===================== BOSS SPRITE =====================
+function drawBossSprite(cx,top,sH){ try{
+  const s=sH*0.5;
+  ctx.save();
+  ctx.translate(cx,top+sH*0.5);
+  // Pulsing red glow
+  const pulse=0.6+0.4*Math.sin(Date.now()*0.005);
+  ctx.shadowColor='#ff0000'; ctx.shadowBlur=30*pulse;
+
+  // Wrapper (dark red)
+  const wg=ctx.createLinearGradient(-s*.5,0,s*.5,s*.6);
+  wg.addColorStop(0,'#660000'); wg.addColorStop(1,'#330000');
+  ctx.fillStyle=wg;
+  ctx.beginPath();
+  ctx.moveTo(-s*.5,-s*.05); ctx.lineTo(-s*.4,s*.55); ctx.lineTo(s*.4,s*.55); ctx.lineTo(s*.5,-s*.05);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='#ff2200'; ctx.lineWidth=2;
+  for(let l=-3;l<=3;l++){
+    ctx.beginPath(); ctx.moveTo(l*s*.12,-s*.05); ctx.lineTo(l*s*.09,s*.55); ctx.stroke();
+  }
+
+  // Dark purple frosting
+  const fg=ctx.createRadialGradient(-s*.1,-s*.15,s*.04,0,-s*.1,s*.5);
+  fg.addColorStop(0,'#aa44aa'); fg.addColorStop(.5,'#660066'); fg.addColorStop(1,'#330033');
+  ctx.fillStyle=fg;
+  ctx.beginPath(); ctx.arc(0,-s*.05,s*.5,0,Math.PI*2); ctx.fill();
+
+  // Drips (dark)
+  ctx.fillStyle='#440044';
+  for(let d=-2;d<=2;d++){
+    ctx.beginPath(); ctx.ellipse(d*s*.19,s*.18,s*.06,s*.09,0,0,Math.PI*2); ctx.fill();
+  }
+
+  // Evil eyes - red glowing
+  ctx.shadowColor='#ff0000'; ctx.shadowBlur=15;
+  ctx.fillStyle='#ff0000';
+  ctx.beginPath(); ctx.ellipse(-s*.17,-s*.12,s*.15,s*.17,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(s*.17,-s*.12,s*.15,s*.17,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#ffaa00';
+  ctx.beginPath(); ctx.ellipse(-s*.17,-s*.12,s*.08,s*.1,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(s*.17,-s*.12,s*.08,s*.1,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#000';
+  ctx.beginPath(); ctx.arc(-s*.16,-s*.11,s*.035,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(s*.18,-s*.11,s*.035,0,Math.PI*2); ctx.fill();
+  ctx.shadowBlur=0;
+
+  // Sharp evil teeth
+  ctx.fillStyle='#111';
+  ctx.beginPath(); ctx.ellipse(0,s*.06,s*.3,s*.15,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#fff';
+  for(let t=-3;t<=3;t++){
+    ctx.beginPath();
+    ctx.moveTo(t*s*.07-s*.025,s*.0);
+    ctx.lineTo(t*s*.07,s*.13);
+    ctx.lineTo(t*s*.07+s*.025,s*.0);
+    ctx.closePath(); ctx.fill();
+  }
+
+  // Horns!
+  ctx.fillStyle='#ff2200'; ctx.shadowColor='#ff0000'; ctx.shadowBlur=8;
+  ctx.beginPath(); ctx.moveTo(-s*.25,-s*.55); ctx.lineTo(-s*.15,-s*.75); ctx.lineTo(-s*.05,-s*.55); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(s*.05,-s*.55); ctx.lineTo(s*.15,-s*.75); ctx.lineTo(s*.25,-s*.55); ctx.closePath(); ctx.fill();
+  ctx.shadowBlur=0;
+
+  // Candle (black evil candle)
+  ctx.fillStyle='#111';
+  ctx.fillRect(-s*.035,-s*.75,s*.07,s*.28);
+  ctx.fillStyle='#440000'; ctx.shadowColor='#ff0000'; ctx.shadowBlur=10;
+  ctx.beginPath();
+  ctx.moveTo(0,-s*.88); ctx.quadraticCurveTo(s*.08,-s*.79,0,-s*.68); ctx.quadraticCurveTo(-s*.08,-s*.79,0,-s*.88);
+  ctx.fill(); ctx.shadowBlur=0;
+
+  // HP label above
+  if(sH>60){
+    ctx.fillStyle='#ff4444';
+    ctx.font=`bold ${Math.max(8,Math.floor(s*.15))}px Arial Black`;
+    ctx.textAlign='center';
+    ctx.fillText('👿 EVIL CUPCAKE',0,-s*.95);
+  }
+  ctx.restore();
+} catch(e){} }
+
+// ===================== MR CUPCAKE HUD =====================
+function drawHUD(){
+  const W=canvas.width,H=canvas.height;
+  const cx=W/2,s=Math.min(70,H*.12);
+  ctx.save();
+  ctx.translate(cx,H-8);
+
+  // Wrapper
+  const wg=ctx.createLinearGradient(-s*.5,0,s*.5,s*.6);
+  wg.addColorStop(0,'#8B4513'); wg.addColorStop(1,'#5C2E0A');
+  ctx.fillStyle=wg;
+  ctx.beginPath(); ctx.moveTo(-s*.5,-s*.05); ctx.lineTo(-s*.4,s*.55); ctx.lineTo(s*.4,s*.55); ctx.lineTo(s*.5,-s*.05); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='#6B3410'; ctx.lineWidth=1.5;
+  for(let l=-3;l<=3;l++){ ctx.beginPath(); ctx.moveTo(l*s*.12,-s*.05); ctx.lineTo(l*s*.09,s*.55); ctx.stroke(); }
+
+  // Frosting
+  const fg=ctx.createRadialGradient(-s*.1,-s*.15,s*.04,0,-s*.1,s*.5);
+  fg.addColorStop(0,'#ffaabb'); fg.addColorStop(.5,'#dd5577'); fg.addColorStop(1,'#aa2244');
+  ctx.fillStyle=fg; ctx.beginPath(); ctx.arc(0,-s*.05,s*.5,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#cc4466';
+  for(let d=-2;d<=2;d++){ ctx.beginPath(); ctx.ellipse(d*s*.19,s*.18,s*.06,s*.09,0,0,Math.PI*2); ctx.fill(); }
+
+  // Eyes
+  ctx.fillStyle='#111';
+  ctx.beginPath(); ctx.ellipse(-s*.17,-s*.12,s*.15,s*.17,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(s*.17,-s*.12,s*.15,s*.17,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#fff';
+  ctx.beginPath(); ctx.ellipse(-s*.17,-s*.12,s*.1,s*.12,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(s*.17,-s*.12,s*.1,s*.12,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#cc8822';
+  ctx.beginPath(); ctx.arc(-s*.16,-s*.13,s*.065,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(s*.18,-s*.13,s*.065,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#000';
+  ctx.beginPath(); ctx.arc(-s*.16,-s*.13,s*.035,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(s*.18,-s*.13,s*.035,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#fff';
+  ctx.beginPath(); ctx.arc(-s*.12,-s*.16,s*.016,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(s*.22,-s*.16,s*.016,0,Math.PI*2); ctx.fill();
+
+  // Teeth
+  ctx.fillStyle='#fff';
+  ctx.fillRect(-s*.09,s*.04,s*.075,s*.09); ctx.fillRect(s*.015,s*.04,s*.075,s*.09);
+
+  // Candle & flame
+  ctx.fillStyle='#88aa44'; ctx.fillRect(-s*.035,-s*.7,s*.07,s*.3);
+  ctx.fillStyle='#ffaa00'; ctx.shadowColor='#ff6600'; ctx.shadowBlur=8;
+  ctx.beginPath();
+  ctx.moveTo(0,-s*.83); ctx.quadraticCurveTo(s*.07,-s*.74,0,-s*.64); ctx.quadraticCurveTo(-s*.07,-s*.74,0,-s*.83);
+  ctx.fill(); ctx.shadowBlur=0;
+
+  ctx.restore();
+}
+
+// ===================== ACTIONS =====================
+function tryEat(){
+  if(!running||transitioning) return;
+  let best=null,bestDist=1.8;
+  for(const f of foods){
+    if(f.eaten) continue;
+    const dx=f.x-px,dy=f.y-py,dist=Math.hypot(dx,dy);
+    if(dist>bestDist) continue;
+    const a=Math.atan2(dy,dx)-pAngle;
+    const diff=((a%Math.PI*2)+Math.PI*3)%(Math.PI*2)-Math.PI;
+    if(Math.abs(diff)<1.1){best=f;bestDist=dist;}
+  }
+  if(best){
+    best.eaten=true; score+=best.type.pts;
+    eatFlash=1.2; eatEmoji=best.type.emoji; eatPts=best.type.pts;
+    playEatSound(best.type.pts);
+    updateUI();
+    if(foods.every(f=>f.eaten)&&!bossActive) checkFloorClear();
+  } else {
+    showMsg('Nothing here!\nMove closer 👣');
+  }
+}
+
+function tryClimb(){
+  if(!running||transitioning) return;
+  for(const l of ladders){
+    if(Math.hypot(l.x-px,l.y-py)<1.4){
+      climbLadder(l.dir); return;
+    }
+  }
+  showMsg('Find a ladder 🪜');
+}
+
+function tryShoot(){
+  if(!running||!bossActive||shootCooldown>0) return;
+  shootCooldown=0.4;
+  gameProjectiles.push({x:px+Math.cos(pAngle)*0.5,y:py+Math.sin(pAngle)*0.5,vx:Math.cos(pAngle)*5,vy:Math.sin(pAngle)*5,life:3});
+  showMsg('⭐ POW!');
+}
+
+function climbLadder(dir){
+  transitioning=true;
+  const nextFloor = dir==='up' ? floorIdx+1 : floorIdx-1;
+  showMsg(dir==='up'?'⬆️ Going up!':'⬇️ Going down!');
+  setTimeout(()=>{
+    loadFloor(houseIdx, nextFloor);
+    transitioning=false;
+    showMsg('📶 '+FLOOR_NAMES[floorIdx]);
+  },1000);
+}
+
+function checkFloorClear(){
+  transitioning=true;
+  if(floorIdx<3){
+    showMsg('✅ Floor cleared!\nFind the ladder ⬆️');
+    transitioning=false;
+  } else {
+    // Attic cleared - next house
+    if(houseIdx<2){
+      showMsg('🏠 HOUSE CLEARED!\n➡️ Next house...');
+      setTimeout(()=>{
+        loadFloor(houseIdx+1,0);
+        transitioning=false;
+        showMsg('🏠 House '+(houseIdx+1)+' of 3\nStart on the ground floor!');
+      },2000);
+    }
+  }
+}
+
+// ===================== BOSS UPDATE =====================
+function updateBoss(dt){
+  if(!bossActive) return;
+  bossTimer+=dt;
+
+  // Boss movement - circle player
+  const dx=px-bossX, dy=py-bossY;
+  const dist=Math.hypot(dx,dy);
+  const targetDist=3.5;
+  if(dist>targetDist+0.5){
+    bossX+=dx/dist*1.2*dt;
+    bossY+=dy/dist*1.2*dt;
+  } else if(dist<targetDist-0.5){
+    bossX-=dx/dist*1.2*dt;
+    bossY-=dy/dist*1.2*dt;
+  } else {
+    // Circle
+    bossX+=Math.cos(bossTimer)*1.5*dt;
+    bossY+=Math.sin(bossTimer)*1.5*dt;
+  }
+  // Clamp to map
+  bossX=Math.max(1.2,Math.min(mapW-1.2,bossX));
+  bossY=Math.max(1.2,Math.min(mapH-1.2,bossY));
+
+  // Fireball every 2s
+  if(Math.floor(bossTimer*0.5)>Math.floor((bossTimer-dt)*0.5)){
+    const a=Math.atan2(py-bossY,px-bossX);
+    const spread=0.25;
+    for(let s=-1;s<=1;s++){
+      const fa=a+s*spread;
+      bossFireballs.push({x:bossX,y:bossY,vx:Math.cos(fa)*3,vy:Math.sin(fa)*3,life:4});
+    }
+  }
+
+  // Move fireballs
+  for(let i=bossFireballs.length-1;i>=0;i--){
+    const fb=bossFireballs[i];
+    fb.x+=fb.vx*dt; fb.y+=fb.vy*dt; fb.life-=dt;
+    if(fb.life<=0||map[Math.floor(fb.y)]?.[Math.floor(fb.x)]!==0){
+      bossFireballs.splice(i,1); continue;
+    }
+    // Hit player
+    if(playerInvince<=0&&Math.hypot(fb.x-px,fb.y-py)<0.5){
+      playerHP=Math.max(0,playerHP-20);
+      playerInvince=1.5;
+      bossFireballs.splice(i,1);
+      playDamageSound();
+      showMsg('💥 OUCH! -20 HP');
+      updateUI();
+      if(playerHP<=0){ gameOverScreen(); return; }
+    }
+  }
+
+  // Move player projectiles
+  for(let i=gameProjectiles.length-1;i>=0;i--){
+    const p=gameProjectiles[i];
+    p.x+=p.vx*dt; p.y+=p.vy*dt; p.life-=dt;
+    if(p.life<=0||map[Math.floor(p.y)]?.[Math.floor(p.x)]!==0){
+      gameProjectiles.splice(i,1); continue;
+    }
+    // Hit boss
+    if(Math.hypot(p.x-bossX,p.y-bossY)<0.8){
+      bossHP-=25;
+      gameProjectiles.splice(i,1);
+      playBossHitSound();
+      updateUI();
+      if(bossHP<=0){ bossDefeated(); return; }
+      showMsg('💥 HIT! Boss HP: '+bossHP);
+    }
+  }
+
+  if(playerInvince>0) playerInvince-=dt;
+  if(shootCooldown>0) shootCooldown-=dt;
+}
+
+function bossDefeated(){
+  bossActive=false;
+  running=false;
+  document.getElementById('boss-hp').style.display='none';
+  showOverlay(
+    '🎉 YOU WIN! 🎉',
+    `You defeated the Evil Cupcake Boss!\n\nFinal Score: ${score}\n\nMr. Cupcake ate through all 3 houses!`,
+    '🧁 PLAY AGAIN!',
+    ()=>{ score=0; playerHP=100; loadFloor(0,0); running=true; startMusic(); }
+  );
+}
+
+function gameOverScreen(){
+  running=false;
+  showOverlay('💀 GAME OVER','The Evil Cupcake got you!\nScore: '+score,'🔁 TRY AGAIN',()=>{
+    playerHP=100; score=0; loadFloor(0,0); running=true; startMusic();
+  });
+}
+
+// ===================== CONTROLS =====================
+const keys={};
+document.addEventListener('keydown',e=>{ keys[e.key.toLowerCase()]=true;
+  if(e.key==='e'||e.key==='E') tryEat();
+  if(e.key==='f'||e.key==='F') tryClimb();
+  if(e.key===' ') tryShoot();
+});
+document.addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+
+document.addEventListener('mousemove',e=>{
+  if(document.pointerLockElement===canvas&&running) pAngle+=e.movementX*0.003;
+});
+canvas.addEventListener('click',()=>{ if(!running) return; canvas.requestPointerLock().catch(()=>{}); });
+
+// Joystick
+const jZone=document.getElementById('joystick-zone');
+const jKnob=document.getElementById('joystick-knob');
+const JR=33;
+let jx=0,jy=0,jActive=false,jTouchId=null;
+function jSet(cx,cy){
+  const r=jZone.getBoundingClientRect();
+  const ox=cx-r.left-55,oy=cy-r.top-55;
+  const d=Math.min(JR,Math.hypot(ox,oy));
+  const a=Math.atan2(oy,ox);
+  jx=Math.cos(a)*d/JR; jy=Math.sin(a)*d/JR;
+  jKnob.style.left=(33+jx*JR)+'px'; jKnob.style.top=(33+jy*JR)+'px';
+  jActive=true;
+}
+function jClear(){ jx=0;jy=0;jActive=false;jKnob.style.left='33px';jKnob.style.top='33px'; }
+jZone.addEventListener('touchstart',e=>{ e.preventDefault();const t=e.changedTouches[0];jTouchId=t.identifier;jSet(t.clientX,t.clientY); });
+jZone.addEventListener('touchmove', e=>{ e.preventDefault();for(const t of e.changedTouches)if(t.identifier===jTouchId) jSet(t.clientX,t.clientY); });
+jZone.addEventListener('touchend',  e=>{ e.preventDefault();jClear(); });
+jZone.addEventListener('mousedown', e=>{ jSet(e.clientX,e.clientY); });
+window.addEventListener('mousemove',e=>{ if(jActive&&!jTouchId) jSet(e.clientX,e.clientY); });
+window.addEventListener('mouseup',  ()=>{ if(!jTouchId) jClear(); });
+
+// Look zone
+const lookZone=document.getElementById('look-zone');
+let lookLastX=null,lookTouchId=null;
+lookZone.addEventListener('touchstart',e=>{ e.preventDefault();const t=e.changedTouches[0];lookTouchId=t.identifier;lookLastX=t.clientX; });
+lookZone.addEventListener('touchmove', e=>{ e.preventDefault();for(const t of e.changedTouches)if(t.identifier===lookTouchId&&lookLastX!==null){pAngle+=(t.clientX-lookLastX)*0.005;lookLastX=t.clientX;} });
+lookZone.addEventListener('touchend',  e=>{ lookLastX=null;lookTouchId=null; });
+
+// Buttons
+document.getElementById('eat-btn').addEventListener('click',tryEat);
+document.getElementById('eat-btn').addEventListener('touchstart',e=>{ e.preventDefault();tryEat(); });
+document.getElementById('climb-btn').addEventListener('click',tryClimb);
+document.getElementById('climb-btn').addEventListener('touchstart',e=>{ e.preventDefault();tryClimb(); });
+document.getElementById('shoot-btn').addEventListener('click',tryShoot);
+document.getElementById('shoot-btn').addEventListener('touchstart',e=>{ e.preventDefault();tryShoot(); });
+
+// ===================== UPDATE =====================
+let lastTime=0;
+function update(dt){
+  if(!running||transitioning||!map) return;
+  const spd=2.8*dt, turnSpd=1.8*dt;
+  if(keys['arrowleft']||keys['a']) pAngle-=turnSpd;
+  if(keys['arrowright']||keys['d']) pAngle+=turnSpd;
+
+  let mx=0,my=0;
+  if(keys['arrowup']||keys['w']){ mx+=Math.cos(pAngle);my+=Math.sin(pAngle); }
+  if(keys['arrowdown']||keys['s']){ mx-=Math.cos(pAngle);my-=Math.sin(pAngle); }
+  if(jActive){
+    mx+=Math.cos(pAngle)*(-jy)-Math.sin(pAngle)*jx;
+    my+=Math.sin(pAngle)*(-jy)+Math.cos(pAngle)*jx;
+  }
+  const len=Math.hypot(mx,my);
+  if(len>0){
+    const nx=mx/len, ny=my/len;
+    const R=0.3; // collision radius
+    // Move X
+    const tx=px+nx*spd;
+    if(isFree(tx-R,py) && isFree(tx+R,py) && isFree(tx,py-R) && isFree(tx,py+R)) px=tx;
+    // Move Y
+    const ty=py+ny*spd;
+    if(isFree(px-R,ty) && isFree(px+R,ty) && isFree(px,ty-R) && isFree(px,ty+R)) py=ty;
+  }
+  // Always clamp inside map
+  px=Math.max(0.5,Math.min(mapW-0.5,px));
+  py=Math.max(0.5,Math.min(mapH-0.5,py));
+  // Push out of wall if inside one
+  if(!isFree(px,py)){
+    let freed=false;
+    for(let r=0.2;r<2.5&&!freed;r+=0.2){
+      for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]]){
+        const nx2=px+dx*r, ny2=py+dy*r;
+        if(isFree(nx2,ny2)){ px=nx2; py=ny2; freed=true; break; }
+      }
+    }
+    if(!freed){ px=startX; py=startY; } // teleport to floor start
+  }
+
+  for(const f of foods) f.bob+=dt*2.5;
+  if(eatFlash>0) eatFlash=Math.max(0,eatFlash-dt*2.5);
+  try{ updateBoss(dt); } catch(e){ console.error('boss err',e); }
+}
+
+// ===================== OVERLAY =====================
+function showOverlay(title,body,btnText,onBtn){
+  const ov=document.getElementById('overlay');
+  ov.innerHTML=`
+    <h1>${title}</h1>
+    <p style="color:#ffeeaa;font-size:1rem;white-space:pre-line;text-align:center;margin:10px 0;">${body}</p>
+    <button class="btn" id="ovBtn">${btnText}</button>
+  `;
+  ov.style.display='flex';
+  document.getElementById('ovBtn').addEventListener('click',()=>{ ov.style.display='none'; onBtn(); });
+}
+
+function showMsg(text){
+  const el=document.getElementById('msg');
+  el.textContent=text; el.style.opacity='1';
+  clearTimeout(msgTimer);
+  msgTimer=setTimeout(()=>el.style.opacity='0',2000);
+}
+
+// ===================== LOOP =====================
+function loop(now){
+  const dt=Math.min((now-lastTime)/1000,0.05);
+  lastTime=now;
+  try{ update(dt); drawScene(); drawHUD(); } catch(e){ console.error(e); }
+  requestAnimationFrame(loop);
+}
+
+
+// ===================== AUDIO =====================
+let audioCtx = null;
+let musicNodes = null;
+
+function ensureAudio(){
+  if(!audioCtx){
+    audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+  }
+  if(audioCtx.state==='suspended') audioCtx.resume();
+}
+
+function startMusic(){
+  try {
+    ensureAudio();
+    stopMusic();
+
+    const ac = audioCtx;
+    const master = ac.createGain();
+    master.gain.value = 0.18;
+    master.connect(ac.destination);
+
+    // --- Creepy drone bass ---
+    const drone = ac.createOscillator();
+    drone.type = 'sawtooth';
+    drone.frequency.value = 55; // low A
+    const droneGain = ac.createGain();
+    droneGain.gain.value = 0.35;
+    // slow LFO wobble on drone
+    const droneLFO = ac.createOscillator();
+    droneLFO.frequency.value = 0.15;
+    const droneLFOGain = ac.createGain();
+    droneLFOGain.gain.value = 8;
+    droneLFO.connect(droneLFOGain);
+    droneLFOGain.connect(drone.frequency);
+    drone.connect(droneGain);
+    droneGain.connect(master);
+    drone.start(); droneLFO.start();
+
+    // --- Eerie high whistle melody ---
+    const melodyNotes = [220, 233, 196, 208, 175, 185, 196, 220];
+    let noteIdx = 0;
+    function playNextNote(){
+      if(!audioCtx || audioCtx.state==='closed') return;
+      try {
+        const osc = ac.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.value = melodyNotes[noteIdx % melodyNotes.length];
+        noteIdx++;
+        const g = ac.createGain();
+        g.gain.setValueAtTime(0, ac.currentTime);
+        g.gain.linearRampToValueAtTime(0.4, ac.currentTime+0.1);
+        g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime+1.2);
+        osc.connect(g); g.connect(master);
+        osc.start(ac.currentTime);
+        osc.stop(ac.currentTime+1.3);
+        // schedule next note
+        setTimeout(playNextNote, 900 + Math.random()*600);
+      } catch(e){}
+    }
+    playNextNote();
+
+    // --- Creepy random plucks (high freq) ---
+    function randomPluck(){
+      if(!audioCtx||audioCtx.state==='closed') return;
+      try {
+        const osc = ac.createOscillator();
+        osc.type = 'triangle';
+        const freqs = [440,466,392,415,370,349,523,554];
+        osc.frequency.value = freqs[Math.floor(Math.random()*freqs.length)]*2;
+        const g = ac.createGain();
+        g.gain.setValueAtTime(0.25, ac.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime+0.4);
+        osc.connect(g); g.connect(master);
+        osc.start(); osc.stop(ac.currentTime+0.45);
+        setTimeout(randomPluck, 1500+Math.random()*3000);
+      } catch(e){}
+    }
+    setTimeout(randomPluck, 2000);
+
+    // --- Low thump heartbeat ---
+    function heartbeat(){
+      if(!audioCtx||audioCtx.state==='closed') return;
+      try {
+        for(let i=0;i<2;i++){
+          const buf = ac.createBuffer(1, ac.sampleRate*0.12, ac.sampleRate);
+          const d = buf.getChannelData(0);
+          for(let j=0;j<d.length;j++) d[j]=(Math.random()*2-1)*Math.exp(-j/d.length*20);
+          const src = ac.createBufferSource();
+          src.buffer = buf;
+          const g = ac.createGain();
+          g.gain.value = 0.5;
+          const filter = ac.createBiquadFilter();
+          filter.type='lowpass'; filter.frequency.value=120;
+          src.connect(filter); filter.connect(g); g.connect(master);
+          src.start(ac.currentTime + i*0.22);
+        }
+        setTimeout(heartbeat, 1800+Math.random()*800);
+      } catch(e){}
+    }
+    heartbeat();
+
+    musicNodes = { drone, droneLFO, master };
+  } catch(e){ console.error('music err',e); }
+}
+
+function stopMusic(){
+  try {
+    if(musicNodes){
+      musicNodes.drone.stop();
+      musicNodes.droneLFO.stop();
+      musicNodes = null;
+    }
+  } catch(e){}
+}
+
+function playEatSound(pts){
+  try {
+    ensureAudio();
+    const ac = audioCtx;
+    // Satisfying "nom" crunch + rising jingle
+    // Crunch noise burst
+    const bufSize = ac.sampleRate * 0.08;
+    const buf = ac.createBuffer(1, bufSize, ac.sampleRate);
+    const d = buf.getChannelData(0);
+    for(let i=0;i<bufSize;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/bufSize,3);
+    const src = ac.createBufferSource();
+    src.buffer=buf;
+    const crunchGain=ac.createGain(); crunchGain.gain.value=0.5;
+    const crunchFilter=ac.createBiquadFilter(); crunchFilter.type='bandpass'; crunchFilter.frequency.value=2000;
+    src.connect(crunchFilter); crunchFilter.connect(crunchGain); crunchGain.connect(ac.destination);
+    src.start();
+
+    // Rising "yum" jingle - 3 quick ascending notes
+    const jingleNotes = pts>=40 ? [523,659,784,1047] : [523,659,784];
+    jingleNotes.forEach((freq,i)=>{
+      const osc=ac.createOscillator(); osc.type='sine'; osc.frequency.value=freq;
+      const g=ac.createGain();
+      const t=ac.currentTime+i*0.08;
+      g.gain.setValueAtTime(0.4,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.18);
+      osc.connect(g); g.connect(ac.destination);
+      osc.start(t); osc.stop(t+0.2);
+    });
+  } catch(e){}
+}
+
+function playBossHitSound(){
+  try {
+    ensureAudio();
+    const ac=audioCtx;
+    const osc=ac.createOscillator(); osc.type='sawtooth';
+    osc.frequency.setValueAtTime(300,ac.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(80,ac.currentTime+0.3);
+    const g=ac.createGain(); g.gain.value=0.4;
+    g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.35);
+    osc.connect(g); g.connect(ac.destination);
+    osc.start(); osc.stop(ac.currentTime+0.4);
+  } catch(e){}
+}
+
+function playDamageSound(){
+  try {
+    ensureAudio();
+    const ac=audioCtx;
+    const osc=ac.createOscillator(); osc.type='square';
+    osc.frequency.setValueAtTime(150,ac.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(60,ac.currentTime+0.4);
+    const g=ac.createGain(); g.gain.value=0.5;
+    g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.5);
+    osc.connect(g); g.connect(ac.destination);
+    osc.start(); osc.stop(ac.currentTime+0.5);
+  } catch(e){}
+}
+
+// ===================== START =====================
+document.getElementById('startBtn').addEventListener('click',()=>{
+  document.getElementById('overlay').style.display='none';
+  score=0; playerHP=100; transitioning=false;
+  loadFloor(0,0);
+  running=true;
+  canvas.requestPointerLock().catch(()=>{});
+  startMusic();
+});
+
+requestAnimationFrame(t=>{ lastTime=t; loop(t); });
+</script>
+</body>
+</html>

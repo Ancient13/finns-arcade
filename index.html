@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Finn's Arcade">
+<meta name="theme-color" content="#0a0a1a">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Finn's Arcade 🎮</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@700;900&display=swap');
+
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+  body {
+    background:#0a0a1a;
+    min-height:100vh;
+    font-family:'Nunito',sans-serif;
+    overflow-x:hidden;
+    padding-bottom:40px;
+  }
+
+  /* Animated starfield background */
+  #stars {
+    position:fixed; inset:0; z-index:0; pointer-events:none;
+    overflow:hidden;
+  }
+  .star {
+    position:absolute; border-radius:50%;
+    background:#fff; animation:twinkle linear infinite;
+  }
+  @keyframes twinkle {
+    0%,100%{ opacity:0.2; transform:scale(1); }
+    50%{ opacity:1; transform:scale(1.4); }
+  }
+
+  /* Header */
+  header {
+    position:relative; z-index:1;
+    text-align:center;
+    padding:36px 20px 10px;
+  }
+  header h1 {
+    font-family:'Fredoka One',cursive;
+    font-size:clamp(2.4rem,8vw,3.8rem);
+    color:#fff;
+    text-shadow:0 0 30px #cc44ff, 0 0 60px #cc44ff88, 0 4px 0 #550088;
+    letter-spacing:2px;
+    animation:titlePulse 3s ease-in-out infinite;
+  }
+  @keyframes titlePulse {
+    0%,100%{ text-shadow:0 0 30px #cc44ff, 0 0 60px #cc44ff88, 0 4px 0 #550088; }
+    50%{ text-shadow:0 0 50px #ff88ff, 0 0 100px #cc44ff88, 0 4px 0 #550088; }
+  }
+  header p {
+    color:#cc88ff; font-size:1rem; margin-top:6px; letter-spacing:1px;
+  }
+
+  /* Neon divider */
+  .divider {
+    height:2px; margin:18px auto; width:80%;
+    background:linear-gradient(90deg,transparent,#cc44ff,#ff44aa,#44aaff,transparent);
+    border-radius:2px;
+    box-shadow:0 0 10px #cc44ff88;
+  }
+
+  /* Game grid */
+  #games {
+    position:relative; z-index:1;
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(min(160px,42vw), 1fr));
+    gap:16px;
+    padding:10px 16px 20px;
+    max-width:700px;
+    margin:0 auto;
+  }
+
+  /* Game card */
+  .game-card {
+    background:linear-gradient(135deg,#1a0a2e,#0d0d22);
+    border:2px solid #441188;
+    border-radius:18px;
+    padding:18px 12px 14px;
+    text-align:center;
+    cursor:pointer;
+    text-decoration:none;
+    display:flex; flex-direction:column; align-items:center; gap:8px;
+    transition:transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+    box-shadow:0 4px 20px #00000066;
+    position:relative; overflow:hidden;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .game-card::before {
+    content:''; position:absolute; inset:0; border-radius:18px;
+    background:linear-gradient(135deg,rgba(255,255,255,0.06),transparent);
+    pointer-events:none;
+  }
+  .game-card:active {
+    transform:scale(0.95);
+  }
+  .game-card:hover {
+    transform:translateY(-4px) scale(1.03);
+    box-shadow:0 8px 32px var(--glow), 0 0 0 1px var(--accent);
+    border-color:var(--accent);
+  }
+
+  .game-icon {
+    font-size:3rem; line-height:1;
+    filter:drop-shadow(0 0 10px var(--glow));
+    animation:iconBob 2.5s ease-in-out infinite;
+  }
+  @keyframes iconBob {
+    0%,100%{ transform:translateY(0); }
+    50%{ transform:translateY(-5px); }
+  }
+
+  .game-title {
+    font-family:'Fredoka One',cursive;
+    font-size:1rem; color:#fff;
+    text-shadow:0 0 8px var(--glow);
+    line-height:1.2;
+  }
+
+  .game-desc {
+    font-size:0.72rem; color:#aaa;
+    line-height:1.3;
+  }
+
+  .game-tag {
+    font-size:0.65rem; font-weight:900; letter-spacing:1px;
+    padding:3px 10px; border-radius:20px;
+    background:var(--accent); color:#fff;
+    text-transform:uppercase;
+    box-shadow:0 0 8px var(--glow);
+  }
+
+  /* NEW badge */
+  .badge-new {
+    position:absolute; top:10px; right:10px;
+    background:#ff4400; color:#fff;
+    font-size:0.6rem; font-weight:900; letter-spacing:1px;
+    padding:2px 7px; border-radius:20px;
+    text-transform:uppercase; box-shadow:0 0 8px #ff440088;
+  }
+
+  /* Footer */
+  footer {
+    position:relative; z-index:1;
+    text-align:center; color:#554477;
+    font-size:0.8rem; padding:20px;
+    letter-spacing:1px;
+  }
+  footer span { color:#cc44ff; }
+
+  /* Install banner */
+  #install-banner {
+    position:fixed; bottom:0; left:0; right:0; z-index:50;
+    background:linear-gradient(135deg,#1a0a3e,#2a0a4e);
+    border-top:2px solid #cc44ff;
+    padding:12px 20px;
+    display:none; align-items:center; justify-content:space-between; gap:10px;
+    box-shadow:0 -4px 20px #cc44ff44;
+  }
+  #install-banner p { color:#fff; font-size:0.9rem; }
+  #install-banner p span { color:#cc88ff; font-weight:900; }
+  #install-btn {
+    background:linear-gradient(135deg,#6622cc,#cc44ff);
+    color:#fff; border:none; border-radius:24px;
+    padding:8px 20px; font-size:0.9rem; font-weight:900;
+    cursor:pointer; white-space:nowrap;
+    box-shadow:0 0 12px #cc44ff88;
+  }
+  #close-banner {
+    background:none; border:none; color:#888; font-size:1.2rem; cursor:pointer; padding:4px;
+  }
+
+  /* iOS tip */
+  #ios-tip {
+    position:fixed; bottom:0; left:0; right:0; z-index:50;
+    background:linear-gradient(135deg,#1a0a3e,#2a0a4e);
+    border-top:2px solid #cc44ff;
+    padding:14px 20px;
+    display:none; flex-direction:column; align-items:center; gap:6px;
+    box-shadow:0 -4px 20px #cc44ff44;
+    text-align:center;
+  }
+  #ios-tip p { color:#fff; font-size:0.9rem; }
+  #ios-tip p span { color:#cc88ff; font-weight:900; }
+  #ios-tip button { background:none; border:none; color:#888; font-size:0.85rem; cursor:pointer; margin-top:4px; }
+</style>
+</head>
+<body>
+
+<!-- Starfield -->
+<div id="stars"></div>
+
+<!-- Header -->
+<header>
+  <h1>🎮 Finn's Arcade 🎮</h1>
+  <p>Your personal game collection · Play anywhere!</p>
+</header>
+<div class="divider"></div>
+
+<!-- Game Grid -->
+<div id="games">
+
+  <a class="game-card" href="puppet-shooter.html"
+     style="--accent:#9b4dca;--glow:#9b4dca88;">
+    <div class="game-icon">🎁</div>
+    <div class="game-title">Puppet Shooter</div>
+    <div class="game-desc">Shoot Puppet blocks before they reach you!</div>
+    <div class="game-tag">Shooter</div>
+  </a>
+
+  <a class="game-card" href="nightmare-shooter.html"
+     style="--accent:#cc2200;--glow:#cc220088;">
+    <div class="game-icon">☠️</div>
+    <div class="game-title">Nightmare Shooter</div>
+    <div class="game-desc">Blast Nightmare animatronics out of the dark!</div>
+    <div class="game-tag">Shooter</div>
+  </a>
+
+  <a class="game-card" href="mangle-shooter.html"
+     style="--accent:#cc44ff;--glow:#cc44ff88;">
+    <div class="game-icon">🦊</div>
+    <div class="game-title">Mangle vs Stitchwraith</div>
+    <div class="game-desc">Mangle shoots Stitchwraiths from all sides!</div>
+    <div class="game-tag">360° Shooter</div>
+  </a>
+
+  <a class="game-card" href="appleman-shooter.html"
+     style="--accent:#44cc00;--glow:#44cc0088;">
+    <div class="game-icon">🍎</div>
+    <div class="game-title">Apple Man Shooter</div>
+    <div class="game-desc">Apple Man blasts falling logs from the sky!</div>
+    <div class="game-tag">Shooter</div>
+  </a>
+
+  <a class="game-card" href="mr-cupcake-3d.html"
+     style="--accent:#ff66aa;--glow:#ff66aa88;">
+    <div class="game-icon">🧁</div>
+    <div class="game-title">Mr. Cupcake 3D</div>
+    <div class="game-desc">3D house explorer · Eat everything · Fight the boss!</div>
+    <div class="game-tag">3D Adventure</div>
+    <div class="badge-new">HOT</div>
+  </a>
+
+  <a class="game-card" href="helpy-run.html"
+     style="--accent:#ddaaff;--glow:#ddaaff88;">
+    <div class="game-icon">🧸</div>
+    <div class="game-title">Helpy Run!</div>
+    <div class="game-desc">Run from Glamrock Freddy through the pizzeria!</div>
+    <div class="game-tag">Chase Game</div>
+  </a>
+
+  <a class="game-card" href="apple-catch.html"
+     style="--accent:#88ee22;--glow:#88ee2288;">
+    <div class="game-icon">🍏</div>
+    <div class="game-title">Apple Catch</div>
+    <div class="game-desc">Catch your apple pieces before they hit the ground!</div>
+    <div class="game-tag">Catch Game</div>
+    <div class="badge-new">NEW</div>
+  </a>
+
+</div>
+
+<div class="divider"></div>
+<footer>Made with ❤️ for <span>Finn</span> · Finn's Arcade 2025</footer>
+
+<!-- Android install banner -->
+<div id="install-banner">
+  <p>📲 Add <span>Finn's Arcade</span> to your home screen!</p>
+  <button id="install-btn">Install App</button>
+  <button id="close-banner">✕</button>
+</div>
+
+<!-- iOS install tip -->
+<div id="ios-tip">
+  <p>📲 To install: tap <span>Share ↑</span> then <span>"Add to Home Screen"</span></p>
+  <p style="color:#888;font-size:0.8rem;">Then it'll look just like a real app!</p>
+  <button onclick="document.getElementById('ios-tip').style.display='none'">Got it ✓</button>
+</div>
+
+<script>
+// ── Starfield ──────────────────────────────────────────────────────────────
+const starsEl = document.getElementById('stars');
+for(let i=0;i<80;i++){
+  const s = document.createElement('div');
+  s.className = 'star';
+  const sz = 1+Math.random()*2.5;
+  s.style.cssText = `
+    width:${sz}px; height:${sz}px;
+    left:${Math.random()*100}%;
+    top:${Math.random()*100}%;
+    animation-duration:${2+Math.random()*4}s;
+    animation-delay:${Math.random()*4}s;
+    opacity:${0.2+Math.random()*0.5};
+  `;
+  starsEl.appendChild(s);
+}
+
+// ── PWA Service Worker ─────────────────────────────────────────────────────
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('./sw.js').then(r=>{
+    console.log('SW registered');
+  }).catch(e=>console.log('SW failed',e));
+}
+
+// ── Install prompt (Android/Chrome) ───────────────────────────────────────
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', e=>{
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById('install-banner').style.display='flex';
+});
+
+document.getElementById('install-btn').addEventListener('click', async ()=>{
+  if(!deferredPrompt) return;
+  deferredPrompt.prompt();
+  const { outcome } = await deferredPrompt.userChoice;
+  deferredPrompt = null;
+  document.getElementById('install-banner').style.display='none';
+});
+
+document.getElementById('close-banner').addEventListener('click',()=>{
+  document.getElementById('install-banner').style.display='none';
+});
+
+window.addEventListener('appinstalled',()=>{
+  document.getElementById('install-banner').style.display='none';
+});
+
+// ── iOS tip (show once) ────────────────────────────────────────────────────
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const isStandalone = window.navigator.standalone;
+const shownTip = localStorage.getItem('ios-tip-shown');
+if(isIOS && !isStandalone && !shownTip){
+  setTimeout(()=>{
+    document.getElementById('ios-tip').style.display='flex';
+    localStorage.setItem('ios-tip-shown','1');
+  }, 2500);
+}
+
+// ── Stagger card animations ───────────────────────────────────────────────
+document.querySelectorAll('.game-card').forEach((card,i)=>{
+  card.style.opacity='0';
+  card.style.transform='translateY(30px)';
+  setTimeout(()=>{
+    card.style.transition='opacity 0.4s ease, transform 0.4s ease';
+    card.style.opacity='1';
+    card.style.transform='translateY(0)';
+  }, 100+i*80);
+});
+</script>
+</body>
+</html>

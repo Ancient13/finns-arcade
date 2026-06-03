@@ -1,0 +1,16 @@
+{
+  "name": "Finn's Arcade",
+  "short_name": "Finn's Arcade",
+  "description": "Finn's personal game collection - FNAF, Apple Man, Mr Cupcake and more!",
+  "start_url": "/index.html",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#0a0a1a",
+  "theme_color": "#cc44ff",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "categories": ["games", "entertainment"],
+  "screenshots": []
+}
