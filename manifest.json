@@ -1,9 +1,9 @@
 {
   "name": "Finn's Arcade",
   "short_name": "Finn's Arcade",
-  "description": "Finn's personal game collection - FNAF, Apple Man, Mr Cupcake and more!",
-  "start_url": "/finns-arcade/index.html",
-  "scope": "/finns-arcade/",
+  "description": "Finn's personal game collection!",
+  "start_url": ".",
+  "scope": ".",
   "display": "fullscreen",
   "orientation": "portrait",
   "background_color": "#0a0a1a",
