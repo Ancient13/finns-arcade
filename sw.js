@@ -1,5 +1,5 @@
 // Finn's Arcade Service Worker
-const CACHE = 'finns-arcade-v3';
+const CACHE = 'finns-arcade-v4';
 const BASE = '/finns-arcade/';
 const ASSETS = [
   BASE,
@@ -33,11 +33,34 @@ self.addEventListener('activate', e => {
   );
 });
 
+// Network-first for HTML & JS (always get latest code, fall back to cache if offline)
+// Cache-first for images (they never change)
 self.addEventListener('fetch', e => {
-  e.respondWith(
-    caches.match(e.request)
-      .then(cached => cached || fetch(e.request)
-        .catch(() => caches.match(BASE + 'index.html'))
-      )
-  );
+  const url = e.request.url;
+  const isImage = /\.(png|jpg|jpeg|gif|webp|ico|svg)(\?|$)/i.test(url);
+
+  if (isImage) {
+    // Cache-first: images don't change
+    e.respondWith(
+      caches.match(e.request)
+        .then(cached => cached || fetch(e.request).then(res => {
+          const clone = res.clone();
+          caches.open(CACHE).then(c => c.put(e.request, clone));
+          return res;
+        }))
+    );
+  } else {
+    // Network-first: always try to get the latest HTML/JS, fall back to cache offline
+    e.respondWith(
+      fetch(e.request)
+        .then(res => {
+          const clone = res.clone();
+          caches.open(CACHE).then(c => c.put(e.request, clone));
+          return res;
+        })
+        .catch(() => caches.match(e.request)
+          .then(cached => cached || caches.match(BASE + 'index.html'))
+        )
+    );
+  }
 });
