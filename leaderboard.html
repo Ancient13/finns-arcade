@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0a1a">
+<title>🏆 Leaderboard — Finn's Arcade</title>
+<script src="leaderboard.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@700;900&display=swap');
+
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+  body {
+    background:#0a0a1a;
+    min-height:100vh;
+    font-family:'Nunito',sans-serif;
+    overflow-x:hidden;
+    padding-bottom:40px;
+  }
+
+  /* Starfield */
+  #stars { position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden; }
+  .star {
+    position:absolute; border-radius:50%; background:#fff;
+    animation:twinkle linear infinite;
+  }
+  @keyframes twinkle {
+    0%,100%{ opacity:0.2; transform:scale(1); }
+    50%{ opacity:1; transform:scale(1.4); }
+  }
+
+  /* Header */
+  header {
+    position:relative; z-index:1;
+    text-align:center;
+    padding:32px 20px 8px;
+  }
+  header h1 {
+    font-family:'Fredoka One',cursive;
+    font-size:clamp(2rem,7vw,3.2rem);
+    color:#ffd700;
+    text-shadow:0 0 30px #ffaa00, 0 0 60px #ffaa0066, 0 4px 0 #886600;
+    letter-spacing:2px;
+  }
+  header p { color:#cc88ff; font-size:0.95rem; margin-top:6px; letter-spacing:1px; }
+
+  .divider {
+    height:2px; margin:14px auto; width:80%;
+    background:linear-gradient(90deg,transparent,#ffd700,#ff44aa,#44aaff,transparent);
+    border-radius:2px; box-shadow:0 0 10px #ffd70066;
+  }
+
+  /* Back home link */
+  .home-link {
+    position:relative; z-index:1;
+    display:inline-block;
+    margin:0 auto 6px;
+    color:#cc88ff; font-size:0.9rem; text-decoration:none;
+    border:1px solid #441188; border-radius:20px; padding:5px 16px;
+    background:rgba(68,17,136,0.3);
+    transition:background 0.15s;
+  }
+  .home-link:hover { background:rgba(68,17,136,0.6); }
+
+  .home-wrap { text-align:center; position:relative; z-index:1; margin-bottom:8px; }
+
+  /* Grid of game boards */
+  #boards {
+    position:relative; z-index:1;
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(min(280px,90vw), 1fr));
+    gap:18px;
+    padding:10px 16px 20px;
+    max-width:960px;
+    margin:0 auto;
+  }
+
+  /* Individual game board card */
+  .board-card {
+    background:linear-gradient(135deg,#1a0a2e,#0d0d22);
+    border:2px solid var(--accent,#441188);
+    border-radius:16px;
+    padding:16px 14px 14px;
+    box-shadow:0 4px 20px #00000066, 0 0 20px var(--glow,#44118844);
+    position:relative; overflow:hidden;
+  }
+  .board-card::before {
+    content:''; position:absolute; inset:0; border-radius:16px;
+    background:linear-gradient(135deg,rgba(255,255,255,0.05),transparent);
+    pointer-events:none;
+  }
+
+  .card-header {
+    display:flex; align-items:center; gap:10px; margin-bottom:10px;
+  }
+  .card-icon { font-size:2rem; line-height:1; filter:drop-shadow(0 0 8px var(--glow,#44118888)); }
+  .card-title {
+    font-family:'Fredoka One',cursive;
+    font-size:1.1rem; color:#fff;
+    text-shadow:0 0 8px var(--glow,#44118888);
+    line-height:1.2;
+  }
+  .card-link {
+    font-size:0.7rem; color:#888; text-decoration:none; display:block; margin-top:1px;
+  }
+  .card-link:hover { color:#cc88ff; }
+
+  /* Score table inside card */
+  .score-table {
+    width:100%; border-collapse:collapse;
+    font-family:monospace; font-size:0.88rem;
+  }
+  .score-table th {
+    color:#555; font-size:0.65rem; letter-spacing:1px;
+    padding:2px 6px; text-align:left; font-weight:900;
+  }
+  .score-table th.score-col { text-align:right; }
+  .score-table td { padding:3px 6px; }
+  .score-table tr:nth-child(even) { background:rgba(255,255,255,0.03); }
+  .rank  { text-align:center; width:28px; }
+  .name  { font-weight:900; letter-spacing:3px; color:#fff; }
+  .score { text-align:right; font-weight:900; color:var(--accent,#ffd700); }
+
+  .empty-msg {
+    color:#444; font-size:0.82rem; text-align:center;
+    padding:10px 0; font-style:italic;
+  }
+
+  .top-score-badge {
+    display:inline-block; background:var(--accent,#441188);
+    color:#fff; font-size:0.65rem; font-weight:900; letter-spacing:1px;
+    padding:2px 8px; border-radius:20px; margin-left:6px;
+    box-shadow:0 0 8px var(--glow,#44118888);
+    vertical-align:middle;
+  }
+
+  footer {
+    position:relative; z-index:1;
+    text-align:center; color:#554477;
+    font-size:0.8rem; padding:20px;
+    letter-spacing:1px;
+  }
+  footer span { color:#cc44ff; }
+
+  #last-updated {
+    position:relative; z-index:1;
+    text-align:center; color:#444; font-size:0.75rem; margin-top:4px;
+  }
+</style>
+</head>
+<body>
+
+<div id="stars"></div>
+
+<header>
+  <h1>🏆 Leaderboard</h1>
+  <p>Finn's Arcade · Top scores across all games</p>
+</header>
+
+<div class="home-wrap">
+  <a href="index.html" class="home-link">🎮 Back to Arcade</a>
+</div>
+
+<div class="divider"></div>
+
+<div id="boards"></div>
+
+<div id="last-updated"></div>
+
+<div class="divider"></div>
+<footer>Made with ❤️ for <span>Finn</span> · Finn's Arcade 2025</footer>
+
+<script>
+// Starfield
+const starsEl = document.getElementById('stars');
+for(let i=0;i<80;i++){
+  const s = document.createElement('div');
+  s.className = 'star';
+  const sz = 1+Math.random()*2.5;
+  s.style.cssText = `width:${sz}px;height:${sz}px;left:${Math.random()*100}%;top:${Math.random()*100}%;animation-duration:${2+Math.random()*4}s;animation-delay:${Math.random()*4}s;opacity:${0.2+Math.random()*0.5};`;
+  starsEl.appendChild(s);
+}
+
+// Game definitions — order matches index.html
+const GAMES = [
+  { key:'puppet',        icon:'🎁', title:'Puppet Shooter',           file:'puppet-shooter.html',     accent:'#9b4dca', glow:'#9b4dca66' },
+  { key:'nightmare',     icon:'☠️', title:'Nightmare Shooter',         file:'nightmare-shooter.html',  accent:'#cc2200', glow:'#cc220066' },
+  { key:'mangle',        icon:'🦊', title:'Mangle vs Stitchwraith',    file:'mangle-shooter.html',     accent:'#cc44ff', glow:'#cc44ff66' },
+  { key:'appleman',      icon:'🍎', title:'Apple Man Shooter',         file:'appleman-shooter.html',   accent:'#44cc00', glow:'#44cc0066' },
+  { key:'cupcake',       icon:'🧁', title:'Mr. Cupcake 3D',            file:'mr-cupcake-3d.html',      accent:'#ff66aa', glow:'#ff66aa66' },
+  { key:'helpy',         icon:'🧸', title:'Helpy Run!',                file:'helpy-run.html',          accent:'#ddaaff', glow:'#ddaaff66' },
+  { key:'apple_catch',   icon:'🍏', title:'Apple Catch',               file:'apple-catch.html',        accent:'#88ee22', glow:'#88ee2266' },
+  { key:'fnaf_block',    icon:'👻', title:'FNAF Block Shooter',        file:'fnaf-block-shooter.html', accent:'#cc44ff', glow:'#cc44ff66' },
+  { key:'freddy_space',  icon:'🚀', title:'Freddy In Space!',          file:'freddy-space.html',       accent:'#00ffcc', glow:'#00ffcc66' },
+  { key:'fnaf4_security',icon:'🎥', title:'Nightmare Security Room',   file:'fnaf4-3d.html',           accent:'#ff2200', glow:'#ff220066' },
+];
+
+const medals = ['🥇','🥈','🥉'];
+
+function buildBoards(){
+  const container = document.getElementById('boards');
+  container.innerHTML = '';
+
+  GAMES.forEach(g => {
+    const scores = HS.get(g.key);
+    const top = scores[0];
+
+    const card = document.createElement('div');
+    card.className = 'board-card';
+    card.style.setProperty('--accent', g.accent);
+    card.style.setProperty('--glow', g.glow);
+
+    const topBadge = top ? `<span class="top-score-badge">${top.n} · ${top.s}</span>` : '';
+
+    let tableBody = '';
+    if(!scores.length){
+      tableBody = `<tr><td colspan="3" class="empty-msg">No scores yet — be the first!</td></tr>`;
+    } else {
+      scores.slice(0,10).forEach((e,i)=>{
+        const safeName  = (e.n+'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,3)||'???';
+        const safeScore = parseInt(e.s,10)||0;
+        const rankCol   = i===0?'#ffd700':i===1?'#ccc':i===2?'#cd7f32':'#555';
+        tableBody += `<tr>
+          <td class="rank" style="color:${rankCol}">${medals[i]||(i+1)}</td>
+          <td class="name">${safeName}</td>
+          <td class="score">${safeScore.toLocaleString()}</td>
+        </tr>`;
+      });
+    }
+
+    card.innerHTML = `
+      <div class="card-header">
+        <span class="card-icon">${g.icon}</span>
+        <div>
+          <div class="card-title">${g.title}${topBadge}</div>
+          <a href="${g.file}" class="card-link">▶ Play now</a>
+        </div>
+      </div>
+      <table class="score-table">
+        <thead><tr>
+          <th class="rank">#</th>
+          <th>NAME</th>
+          <th class="score-col">SCORE</th>
+        </tr></thead>
+        <tbody>${tableBody}</tbody>
+      </table>
+    `;
+    container.appendChild(card);
+  });
+
+  // Last updated timestamp
+  const upd = localStorage.getItem('hs_updated');
+  if(upd){
+    const d = new Date(parseInt(upd));
+    document.getElementById('last-updated').textContent =
+      'Last score: ' + d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
+  }
+}
+
+buildBoards();
+
+// Auto-refresh if a game updates scores while this tab is open
+window.addEventListener('storage', e => {
+  if(e.key === 'hs_updated') buildBoards();
+});
+</script>
+</body>
+</html>

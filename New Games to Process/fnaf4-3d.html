@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Nightmare in Space — Security Room</title>
+<script src="leaderboard.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Creepster&family=Orbitron:wght@700;900&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:#000;overflow:hidden;touch-action:none;user-select:none;font-family:'Orbitron',monospace;}
+  canvas{display:block;}
+
+  /* HUD */
+  #ui{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:6px 14px;z-index:10;pointer-events:none;background:linear-gradient(180deg,rgba(0,0,0,0.9),transparent);}
+  .pill{background:rgba(0,0,0,0.75);border-radius:20px;padding:3px 12px;font-size:0.75rem;}
+  #score-txt{color:#00ffcc;border:1.5px solid #00ffcc44;}
+  #night-txt{color:#ff4444;border:1.5px solid #ff444444;font-size:0.65rem;}
+  #power-txt{color:#ffcc00;border:1.5px solid #ffcc0044;}
+
+  /* Clock */
+  #clock-txt{position:fixed;top:42px;left:50%;transform:translateX(-50%);font-size:1.1rem;color:#aaddff;text-shadow:0 0 10px #4488ff;pointer-events:none;z-index:10;}
+
+  /* Night progress */
+  #night-bar-wrap{position:fixed;bottom:4px;left:50%;transform:translateX(-50%);width:60%;pointer-events:none;z-index:10;}
+  #night-bar-bg{height:5px;background:rgba(255,255,255,0.07);border-radius:3px;overflow:hidden;}
+  #night-bar{height:100%;background:linear-gradient(90deg,#2255cc,#aaddff);border-radius:3px;}
+
+  /* Centre door button */
+  #door-left{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);width:80px;height:70px;border-radius:12px;
+    background:rgba(0,0,0,0.7);border:2px solid #ff4444;color:#ff4444;
+    display:flex;align-items:center;justify-content:center;flex-direction:column;
+    z-index:15;cursor:pointer;pointer-events:all;-webkit-tap-highlight-color:transparent;
+    font-family:'Orbitron',monospace;font-size:0.55rem;gap:2px;letter-spacing:1px;}
+  #door-left.closed{background:rgba(200,0,0,0.3);border-color:#ff2200;box-shadow:0 0 12px #ff220066;}
+
+  /* Right door button */
+  #door-right{position:fixed;bottom:80px;right:16px;width:70px;height:70px;border-radius:12px;
+    background:rgba(0,0,0,0.7);border:2px solid #ff4444;color:#ff4444;
+    font-size:1.4rem;display:flex;align-items:center;justify-content:center;flex-direction:column;
+    z-index:15;cursor:pointer;pointer-events:all;-webkit-tap-highlight-color:transparent;
+    font-family:'Orbitron',monospace;font-size:0.55rem;gap:2px;letter-spacing:1px;}
+  #door-right.closed{background:rgba(200,0,0,0.3);border-color:#ff2200;box-shadow:0 0 12px #ff220066;}
+
+  /* Camera button */
+  #cam-btn{position:fixed;bottom:80px;left:16px;width:80px;height:70px;border-radius:12px;
+    background:rgba(0,0,0,0.7);border:2px solid #00ffcc;color:#00ffcc;
+    display:flex;align-items:center;justify-content:center;flex-direction:column;
+    z-index:15;cursor:pointer;pointer-events:all;-webkit-tap-highlight-color:transparent;
+    font-family:'Orbitron',monospace;font-size:0.55rem;gap:2px;letter-spacing:1px;}
+  #cam-btn.active{background:rgba(0,80,60,0.5);border-color:#00ffcc;box-shadow:0 0 12px #00ffcc66;}
+
+  /* Camera view overlay */
+  #cam-view{position:fixed;inset:0;z-index:20;display:none;background:rgba(0,0,0,0.92);flex-direction:column;align-items:center;justify-content:center;}
+  #cam-canvas{border:2px solid #00ffcc44;border-radius:4px;}
+  #cam-label{color:#00ffcc;font-size:0.7rem;letter-spacing:2px;margin-bottom:8px;text-shadow:0 0 8px #00ffcc;}
+  #cam-tabs{display:flex;gap:8px;margin-top:10px;}
+  .cam-tab{padding:4px 12px;border-radius:12px;border:1.5px solid #00ffcc44;color:#00ffcc88;font-size:0.65rem;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  .cam-tab.active{background:rgba(0,255,204,0.15);color:#00ffcc;border-color:#00ffcc;}
+
+  /* Msg */
+  #msg{position:fixed;top:38%;left:50%;transform:translate(-50%,-50%);font-family:'Creepster',cursive;font-size:1.7rem;color:#ff4444;text-shadow:0 0 20px #ff0000;white-space:pre-line;pointer-events:none;opacity:0;transition:opacity 0.3s;z-index:25;text-align:center;background:rgba(0,0,0,0.7);padding:10px 22px;border-radius:12px;}
+
+  /* Jumpscare */
+  #jumpscare{position:fixed;inset:0;z-index:50;display:none;background:#000;align-items:center;justify-content:center;}
+
+  /* Overlay */
+  #overlay{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,5,0.96);}
+  #overlay h1{font-family:'Creepster',cursive;font-size:clamp(1.8rem,6vw,3rem);color:#ff2200;text-shadow:0 0 30px #ff0000;letter-spacing:2px;text-align:center;margin-bottom:8px;}
+  #overlay p{color:#666;font-size:0.85rem;margin:3px 0;text-align:center;}
+  .btn{margin-top:20px;padding:12px 40px;font-family:'Creepster',cursive;font-size:1.6rem;letter-spacing:2px;color:#00ffcc;border:2px solid #00ffcc;background:transparent;border-radius:4px;cursor:pointer;box-shadow:0 0 20px #00ffcc33;}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="ui">
+  <div class="pill" id="score-txt">⭐ 0</div>
+  <div class="pill" id="night-txt">NIGHT 1</div>
+  <div class="pill" id="power-txt">⚡ 100%</div>
+</div>
+<div id="clock-txt">12:00 AM</div>
+<div id="night-bar-wrap"><div id="night-bar-bg"><div id="night-bar" style="width:0%"></div></div></div>
+
+<!-- Door buttons -->
+<div id="door-left" onclick="toggleDoor('left')">
+  <span style="font-size:1.6rem">🚪</span>
+  <span id="dlabel">LEFT<br>DOOR</span>
+</div>
+<div id="door-right" onclick="toggleDoor('right')">
+  <span style="font-size:1.6rem">🚪</span>
+  <span id="rlabel">RIGHT<br>DOOR</span>
+</div>
+
+<!-- Camera button -->
+<div id="cam-btn" onclick="toggleCam()">
+  <span style="font-size:1.6rem">📷</span>
+  <span>CAMERAS</span>
+</div>
+
+<!-- Camera overlay -->
+<div id="cam-view">
+  <div id="cam-label">📡 USS FREDDY SECURITY FEED</div>
+  <canvas id="cam-canvas" width="380" height="240"></canvas>
+  <div id="cam-tabs">
+    <div class="cam-tab active" onclick="selectCam(0)">CAM 1A<br>BRIDGE</div>
+    <div class="cam-tab" onclick="selectCam(1)">CAM 2A<br>CORRIDOR L</div>
+    <div class="cam-tab" onclick="selectCam(2)">CAM 3A<br>CORRIDOR R</div>
+    <div class="cam-tab" onclick="selectCam(3)">CAM 4A<br>CARGO BAY</div>
+    <div class="cam-tab" onclick="selectCam(4)">CAM 5A<br>ENGINE</div>
+  </div>
+  <div style="color:#00ffcc88;font-size:0.6rem;margin-top:8px;letter-spacing:1px;">TAP ANYWHERE TO CLOSE</div>
+</div>
+
+<!-- Minimap -->
+<canvas id="minimap" width="160" height="120" style="position:fixed;top:70px;right:10px;z-index:10;border:1.5px solid rgba(0,255,204,0.35);border-radius:4px;background:rgba(0,0,0,0.8);pointer-events:none;"></canvas>
+
+<div id="msg"></div>
+<div id="jumpscare"></div>
+
+<div id="overlay">
+  <h1>👾 NIGHTMARE IN SPACE</h1>
+  <p style="color:#ff6644;font-size:0.95rem;margin-bottom:4px;">You're trapped in the Security Room of the USS Freddy!</p>
+  <p style="color:#00ffcc;font-weight:900;">Survive from 12 AM to 6 AM!</p>
+  <p style="color:#888;margin-top:6px;">📷 Watch the cameras to track the animatronics</p>
+  <p style="color:#ff4444;font-weight:900;">🚪 Close the ONE door when they reach the hallway!</p>
+  <p style="color:#ffcc00;margin-top:4px;">⚡ Doors use POWER — run out and doors stop working!</p>
+  <p style="color:#444;margin-top:8px;font-size:0.78rem;">Each night a new nightmare animatronic is added!</p>
+  <button class="btn" id="startBtn">▶ BEGIN NIGHT WATCH</button>
+</div>
+
+<script>
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+const camCanvas=document.getElementById('cam-canvas');
+const camCtx=camCanvas.getContext('2d');
+let W,H;
+function resize(){W=window.innerWidth;H=window.innerHeight;canvas.width=W;canvas.height=H;}
+resize();window.addEventListener('resize',resize);
+
+// ── AUDIO ────────────────────────────────────────────────────────────────
+let ac=null;
+function ea(){if(!ac)ac=new(window.AudioContext||window.webkitAudioContext)();if(ac.state==='suspended')ac.resume();}
+function beep(f,t,d,v=0.2,s=null){try{ea();const o=ac.createOscillator(),g=ac.createGain();o.type=t;o.frequency.setValueAtTime(f,ac.currentTime);if(s)o.frequency.exponentialRampToValueAtTime(s,ac.currentTime+d);g.gain.setValueAtTime(v,ac.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+d);o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+d+0.01);}catch(e){}}
+function playDoor(){beep(150,'square',0.15,0.3,80);}
+function playCam(){beep(600,'sine',0.05,0.1,400);}
+function playScream(){try{ea();const o=ac.createOscillator(),g=ac.createGain();o.type='sawtooth';o.frequency.setValueAtTime(80,ac.currentTime);o.frequency.exponentialRampToValueAtTime(40,ac.currentTime+1.5);g.gain.setValueAtTime(0.8,ac.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+2);o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+2.1);const o2=ac.createOscillator(),g2=ac.createGain();o2.type='square';o2.frequency.value=1400;g2.gain.setValueAtTime(0.5,ac.currentTime);g2.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.4);o2.connect(g2);g2.connect(ac.destination);o2.start();o2.stop(ac.currentTime+0.5);}catch(e){}}
+function playGrowl(){try{ea();const buf=ac.createBuffer(1,ac.sampleRate*0.5,ac.sampleRate);const d=buf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.exp(-i/d.length*4)*Math.sin(i*0.06);const src=ac.createBufferSource(),g=ac.createGain(),f=ac.createBiquadFilter();src.buffer=buf;g.gain.value=0.45;f.type='lowpass';f.frequency.value=180;src.connect(f);f.connect(g);g.connect(ac.destination);src.start();}catch(e){}}
+function playSurvive(){[523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,'sine',0.18,0.3),i*80));}
+function playPowerLow(){beep(100,'sawtooth',0.3,0.4,60);}
+
+// ── SHIP LAYOUT ───────────────────────────────────────────────────────────
+// Cameras: each animatronic moves through a path toward the security room
+// Path: BRIDGE → CORRIDOR_L or CORRIDOR_R → LEFT_HALL or RIGHT_HALL → DOOR → OFFICE
+const CAMS=[
+  {id:0,name:'CAM 1A — BRIDGE',        color:'#002233'},
+  {id:1,name:'CAM 2A — LEFT CORRIDOR', color:'#001a22'},
+  {id:2,name:'CAM 3A — RIGHT CORRIDOR',color:'#001822'},
+  {id:3,name:'CAM 4A — CARGO BAY',     color:'#001a10'},
+  {id:4,name:'CAM 5A — ENGINE ROOM',   color:'#220a00'},
+];
+
+// Each animatronic path toward office: list of cam IDs to travel through
+// Then 'LEFT_HALL' or 'RIGHT_HALL' before door
+const LEFT_PATH=[0,1,3,'LEFT_HALL'];   // bridge → left corridor → cargo → left hall
+
+// ── ANIMATRONICS ──────────────────────────────────────────────────────────
+const ANIM_DEFS=[
+  {name:'NIGHTMARE FREDBEAR', color:'#5a3808',eyeColor:'#ffdd44',emoji:'🐻',path:'left', moveMin:8, moveMax:18},
+  {name:'NIGHTMARE BONNIE',   color:'#1a1a55',eyeColor:'#cc44ff',emoji:'🐰',path:'left', moveMin:6, moveMax:15},
+  {name:'NIGHTMARE CHICA',    color:'#885500',eyeColor:'#ffcc00',emoji:'🐤',path:'left', moveMin:7, moveMax:16},
+  {name:'NIGHTMARE FOXY',     color:'#661100',eyeColor:'#ff4400',emoji:'🦊',path:'left', moveMin:4, moveMax:10},
+  {name:'NIGHTMARE FREDDY',   color:'#2a1808',eyeColor:'#ffffff',emoji:'🎩',path:'left', moveMin:5, moveMax:12},
+];
+
+// ── STATE ─────────────────────────────────────────────────────────────────
+const NIGHT_DURATION=360;
+const MAX_POWER=100;
+let score=0,lives=3,night=1,running=false;
+let nightTime=0,power=MAX_POWER,msgTimer=null;
+let doorLeft=false; // true = closed
+let doorLeftTimer=0; // countdown until auto-open
+const DOOR_DURATION=10; // seconds
+let camOpen=false,selectedCam=0;
+let enemies=[];
+let growlTimer=0;
+let officeAnim=null; // animatronic currently in office (jumpscare pending)
+
+function startNight(n){
+  night=n; nightTime=0;
+  power=MAX_POWER;
+  doorLeft=false; doorLeftTimer=0;
+  camOpen=false; officeAnim=null;
+  growlTimer=0;
+
+  enemies=[];
+  for(let i=0;i<Math.min(n,ANIM_DEFS.length);i++){
+    const def=ANIM_DEFS[i];
+    const path=[...LEFT_PATH];
+    const speedMult=1+n*0.12;
+    enemies.push({
+      ...def,
+      pathFull:path,
+      pathIdx:0,
+      location:CAMS[0].id,
+      moveTimer:(def.moveMin+(def.moveMax-def.moveMin)*Math.random())/speedMult,
+      atHall:false,
+      inOffice:false,
+      hallTimer:0, // counts up while waiting at hall door
+      roomTimer:0,  // counts up while lingering in a room
+    });
+  }
+  updateUI(); updateDoorUI();
+}
+
+// ── DOOR + CAM ────────────────────────────────────────────────────────────
+function toggleDoor(side){
+  if(!running) return;
+  ea();
+  doorLeft=!doorLeft;
+  if(doorLeft) doorLeftTimer=DOOR_DURATION;
+  else doorLeftTimer=0;
+  playDoor();
+  updateDoorUI();
+}
+function toggleCam(){
+  if(!running) return;
+  ea(); playCam();
+  camOpen=!camOpen;
+  document.getElementById('cam-view').style.display=camOpen?'flex':'none';
+  document.getElementById('cam-btn').className=camOpen?'active':'';
+}
+function selectCam(i){
+  selectedCam=i;
+  document.querySelectorAll('.cam-tab').forEach((t,idx)=>t.className='cam-tab'+(idx===i?' active':''));
+  drawCameraView();
+}
+// Close cam when tapping the view itself
+document.getElementById('cam-view').addEventListener('click',e=>{
+  if(e.target===document.getElementById('cam-view')||e.target.id==='cam-canvas'||e.target.id==='cam-label'){
+    if(camOpen) toggleCam();
+  }
+});
+function updateDoorUI(){
+  const dl=document.getElementById('door-left');
+  dl.className=doorLeft?'closed':'';
+  dl.querySelector('#dlabel').textContent=doorLeft?'DOOR '+Math.ceil(doorLeftTimer)+'s':'DOOR';
+}
+
+// ── UPDATE ────────────────────────────────────────────────────────────────
+let lastTime=0;
+function update(dt){
+  if(!running) return;
+
+  nightTime+=dt;
+  updateClock();
+  if(nightTime>=NIGHT_DURATION){running=false;score+=500*night;playSurvive();endGame(true);return;}
+  document.getElementById('night-bar').style.width=(nightTime/NIGHT_DURATION*100)+'%';
+
+  // Door auto-open after 10 seconds
+  if(doorLeft){
+    doorLeftTimer=Math.max(0,doorLeftTimer-dt);
+    if(doorLeftTimer<=0){ doorLeft=false; updateDoorUI(); showMsg('🚪 Door opened!'); }
+  }
+
+  // Power stays at 100% — unlimited power!
+  document.getElementById('power-txt').textContent='⚡ 100%';
+
+  // Enemy movement
+  growlTimer=Math.max(0,growlTimer-dt);
+  for(const e of enemies){
+    if(e.inOffice) continue;
+    e.moveTimer-=dt;
+    // Force move after 10 seconds in same room
+    e.roomTimer+=dt;
+    if(e.roomTimer>=10) e.moveTimer=0;
+
+    if(e.moveTimer>0) continue;
+
+    e.roomTimer=0; // reset room timer when moving
+    // Reset move timer
+    const speedMult=1+night*0.12;
+    e.moveTimer=(e.moveMin+(e.moveMax-e.moveMin)*Math.random())/speedMult;
+
+    // Advance through path
+    const nextIdx=e.pathIdx+1;
+    if(nextIdx>=e.pathFull.length){
+      // Reached hall — try to enter office
+      const hall=e.pathFull[e.pathFull.length-1];
+      const doorBlocking=(hall==='LEFT_HALL'&&doorLeft)||(hall==='RIGHT_HALL'&&doorRight);
+      if(doorBlocking){
+        // Blocked — wait at hall, count up hallTimer
+        e.hallTimer=(e.hallTimer||0)+e.moveTimer;
+        if(e.hallTimer>=5){
+          // Retreat all the way back to start after 10 seconds
+          e.pathIdx=0;
+          e.location=typeof e.pathFull[0]==='number'?e.pathFull[0]:0;
+          e.hallTimer=0;
+          e.moveTimer=(e.moveMin+(e.moveMax-e.moveMin)*Math.random())/(1+night*0.12);
+          showMsg(e.name+'\nretreated! 👻');
+        } else {
+          if(growlTimer<=0){growlTimer=1.5+Math.random();playGrowl();}
+          showMsg('🚪 Door held!\n'+e.name+' blocked!');
+        }
+      } else {
+        e.hallTimer=0; // reset hall timer when door is open
+        // Enters office — jumpscare!
+        e.inOffice=true;
+        doJumpScare(e);
+        return;
+      }
+    } else {
+      e.pathIdx=nextIdx;
+      const loc=e.pathFull[nextIdx];
+      e.location=typeof loc==='number'?loc:-1; // -1 = in hall
+      if(growlTimer<=0&&Math.random()<0.4){growlTimer=2+Math.random();playGrowl();}
+    }
+  }
+
+  // Score ticks up for surviving
+  if(Math.floor(nightTime)%10===0&&Math.floor(nightTime)!==Math.floor(nightTime-dt)) {
+    score+=night*5; updateUI();
+  }
+}
+
+function doJumpScare(e){
+  running=false; playScream();
+  const js=document.getElementById('jumpscare');js.style.display='flex';
+  const jsc=document.createElement('canvas');jsc.width=W;jsc.height=H;js.appendChild(jsc);
+  const jCtx=jsc.getContext('2d');
+  jCtx.fillStyle='#ff0000';jCtx.fillRect(0,0,W,H);
+  setTimeout(()=>{
+    jCtx.fillStyle='#000';jCtx.fillRect(0,0,W,H);
+    drawBigFace(jCtx,W/2,H/2,Math.min(W,H)*0.65,e);
+    // Name
+    jCtx.fillStyle=e.eyeColor;jCtx.font=`bold ${Math.min(32,W*0.05)}px Creepster,cursive`;
+    jCtx.textAlign='center';jCtx.textBaseline='middle';
+    jCtx.fillText(e.name+' GOT YOU!',W/2,H*0.88);
+    setTimeout(()=>{
+      js.style.display='none';js.innerHTML='';
+      lives=Math.max(0,lives-1);
+      if(lives<=0){endGame(false);return;}
+      showMsg('💀 '+e.name+' GOT IN!\n'+lives+' ❤️ left');
+      // Reset all enemies back to start
+      for(const en of enemies){en.pathIdx=0;en.location=0;en.inOffice=false;en.moveTimer=(en.moveMin+(en.moveMax-en.moveMin)*Math.random());}
+      power=Math.min(MAX_POWER,power+20);
+      doorLeft=false;doorRight=false;
+      updateDoorUI();updateUI();running=true;
+    },2200);
+  },180);
+}
+
+// ── CAMERA VIEW ───────────────────────────────────────────────────────────
+function drawCameraView(){
+  const cW=camCanvas.width,cH=camCanvas.height;
+  const cam=CAMS[selectedCam];
+
+  // Background - dark spaceship room
+  camCtx.fillStyle=cam.color;camCtx.fillRect(0,0,cW,cH);
+
+  // Scanlines (CCTV look)
+  camCtx.fillStyle='rgba(0,0,0,0.15)';
+  for(let y=0;y<cH;y+=3)camCtx.fillRect(0,y,cW,1.5);
+
+  // Noise grain
+  const grain=camCtx.getImageData(0,0,cW,cH);
+  for(let i=0;i<grain.data.length;i+=16){
+    const n=(Math.random()-0.5)*20;
+    grain.data[i]+=n;grain.data[i+1]+=n;grain.data[i+2]+=n;
+  }
+  camCtx.putImageData(grain,0,0);
+
+  // Room details per camera
+  drawCamRoom(selectedCam,cW,cH);
+
+  // Draw animatronics on this camera
+  const here=enemies.filter(e=>!e.inOffice&&(
+    (typeof e.location==='number'&&e.location===selectedCam)||
+    (e.location===-1&&( // in hall
+      (e.path==='left'&&selectedCam===1)||(e.path==='right'&&selectedCam===2)
+    ))
+  ));
+  for(const e of here){
+    drawCamEnemy(e,cW,cH);
+  }
+
+  // Camera info overlay
+  camCtx.fillStyle='rgba(0,255,204,0.08)';
+  camCtx.fillRect(0,cH-22,cW,22);
+  camCtx.fillStyle='#00ffcc88';
+  camCtx.font='bold 9px Orbitron,monospace';
+  camCtx.textAlign='left';camCtx.textBaseline='middle';
+  camCtx.fillText(cam.name,6,cH-11);
+  // Timestamp
+  camCtx.textAlign='right';
+  camCtx.fillText(new Date().toLocaleTimeString(),cW-6,cH-11);
+
+  // REC indicator
+  if(Math.floor(Date.now()/600)%2===0){
+    camCtx.fillStyle='#ff2200';
+    camCtx.beginPath();camCtx.arc(cW-50,12,5,0,Math.PI*2);camCtx.fill();
+    camCtx.fillStyle='#ff6644';camCtx.font='bold 9px Orbitron,monospace';
+    camCtx.textAlign='right';camCtx.fillText('REC',cW-60,12);
+  }
+
+  // Vignette
+  const vig=camCtx.createRadialGradient(cW/2,cH/2,cH*0.2,cW/2,cH/2,cH*0.8);
+  vig.addColorStop(0,'rgba(0,0,0,0)');vig.addColorStop(1,'rgba(0,0,0,0.55)');
+  camCtx.fillStyle=vig;camCtx.fillRect(0,0,cW,cH);
+}
+
+function drawCamRoom(camId,cW,cH){
+  // Each camera shows a different spaceship area
+  const configs=[
+    // CAM 0 - Bridge: curved console, star window
+    ()=>{
+      camCtx.strokeStyle='rgba(0,150,200,0.3)';camCtx.lineWidth=1;
+      // Star window
+      camCtx.fillStyle='#000810';camCtx.beginPath();camCtx.ellipse(cW/2,cH*0.3,cW*0.3,cH*0.22,0,0,Math.PI*2);camCtx.fill();
+      camCtx.strokeStyle='rgba(0,100,180,0.5)';camCtx.lineWidth=2;camCtx.stroke();
+      // Stars
+      camCtx.fillStyle='rgba(255,255,255,0.6)';
+      for(let i=0;i<30;i++){const sx=(i*137)%cW*0.6+cW*0.2,sy=(i*97)%cH*0.45+cH*0.1;camCtx.beginPath();camCtx.arc(sx,sy,0.8,0,Math.PI*2);camCtx.fill();}
+      // Console
+      camCtx.fillStyle='rgba(0,60,80,0.8)';camCtx.fillRect(0,cH*0.72,cW,cH*0.28);
+      camCtx.fillStyle='rgba(0,200,160,0.2)';
+      for(let x=cW*0.1;x<cW*0.9;x+=30){camCtx.fillRect(x,cH*0.75,18,10);camCtx.fillRect(x+5,cH*0.88,10,8);}
+      // Flashing lights
+      if(Math.floor(Date.now()/500)%2){camCtx.fillStyle='rgba(255,80,0,0.6)';camCtx.beginPath();camCtx.arc(cW*0.12,cH*0.8,6,0,Math.PI*2);camCtx.fill();}
+    },
+    // CAM 1 - Left Corridor
+    ()=>{
+      // Long dark corridor
+      const cx=cW/2;
+      camCtx.fillStyle='rgba(0,80,120,0.2)';
+      for(let d=0;d<8;d++){const s=d/8,t=1-s;camCtx.strokeStyle=`rgba(0,150,200,${t*0.3})`;camCtx.lineWidth=1;camCtx.strokeRect(cx-cW*0.5*t,cH*0.5*s,cW*t,cH*t);}
+      // Pipes on ceiling
+      camCtx.strokeStyle='rgba(80,100,120,0.5)';camCtx.lineWidth=3;
+      camCtx.beginPath();camCtx.moveTo(0,cH*0.1);camCtx.lineTo(cW,cH*0.1);camCtx.stroke();
+      camCtx.beginPath();camCtx.moveTo(0,cH*0.15);camCtx.lineTo(cW,cH*0.15);camCtx.stroke();
+      // Emergency light
+      const flick=Math.sin(Date.now()*0.003)*0.5+0.5;
+      camCtx.fillStyle=`rgba(255,80,0,${flick*0.08})`;camCtx.fillRect(0,0,cW,cH);
+    },
+    // CAM 2 - Right Corridor
+    ()=>{
+      const cx=cW/2;
+      camCtx.fillStyle='rgba(0,80,100,0.2)';
+      for(let d=0;d<8;d++){const s=d/8,t=1-s;camCtx.strokeStyle=`rgba(0,130,180,${t*0.3})`;camCtx.lineWidth=1;camCtx.strokeRect(cx-cW*0.5*t,cH*0.5*s,cW*t,cH*t);}
+      camCtx.strokeStyle='rgba(100,80,80,0.4)';camCtx.lineWidth=2;
+      camCtx.beginPath();camCtx.moveTo(0,cH*0.12);camCtx.lineTo(cW,cH*0.12);camCtx.stroke();
+      const flick=Math.sin(Date.now()*0.005+1)*0.5+0.5;
+      camCtx.fillStyle=`rgba(255,100,0,${flick*0.06})`;camCtx.fillRect(0,0,cW,cH);
+    },
+    // CAM 3 - Cargo Bay: crates
+    ()=>{
+      camCtx.fillStyle='rgba(0,40,20,0.5)';camCtx.fillRect(0,cH*0.6,cW,cH*0.4);
+      const cratePos=[[0.05,0.58,0.18,0.3],[0.25,0.52,0.2,0.36],[0.5,0.55,0.22,0.33],[0.72,0.5,0.2,0.38]];
+      cratePos.forEach(([x,y,w,h])=>{
+        camCtx.fillStyle='rgba(40,50,30,0.8)';camCtx.fillRect(cW*x,cH*y,cW*w,cH*h);
+        camCtx.strokeStyle='rgba(60,80,40,0.5)';camCtx.lineWidth=1;camCtx.strokeRect(cW*x,cH*y,cW*w,cH*h);
+        camCtx.fillStyle='rgba(80,100,60,0.3)';camCtx.fillRect(cW*x+2,cH*y+2,cW*w-4,cH*h*0.3);
+      });
+    },
+    // CAM 4 - Engine Room: glowing core
+    ()=>{
+      const pulse=Math.sin(Date.now()*0.004)*0.3+0.7;
+      const eg=camCtx.createRadialGradient(cW/2,cH*0.45,10,cW/2,cH*0.45,cH*0.35);
+      eg.addColorStop(0,`rgba(255,100,0,${pulse*0.5})`);eg.addColorStop(1,'rgba(255,50,0,0)');
+      camCtx.fillStyle=eg;camCtx.fillRect(0,0,cW,cH);
+      // Engine core
+      camCtx.fillStyle=`rgba(255,${Math.floor(80+pulse*80)},0,0.8)`;
+      camCtx.beginPath();camCtx.ellipse(cW/2,cH*0.45,cW*0.12,cH*0.15,0,0,Math.PI*2);camCtx.fill();
+      camCtx.strokeStyle=`rgba(255,150,0,${pulse*0.8})`;camCtx.lineWidth=3;camCtx.stroke();
+      // Pipes radiating out
+      camCtx.strokeStyle='rgba(80,40,20,0.6)';camCtx.lineWidth=4;
+      for(let a=0;a<6;a++){const ang=a/6*Math.PI*2;camCtx.beginPath();camCtx.moveTo(cW/2+Math.cos(ang)*cW*0.12,cH*0.45+Math.sin(ang)*cH*0.15);camCtx.lineTo(cW/2+Math.cos(ang)*cW*0.45,cH*0.45+Math.sin(ang)*cH*0.4);camCtx.stroke();}
+    },
+  ];
+  configs[camId]?.();
+}
+
+function drawCamEnemy(e,cW,cH){
+  // Draw a small silhouette of the animatronic on the camera feed
+  const x=cW/2+(Math.random()-0.5)*cW*0.3; // slight random position
+  const y=cH*0.55;
+  const s=cH*0.25;
+  camCtx.save();camCtx.translate(x,y);
+  // Glowing eyes only (CCTV style)
+  camCtx.shadowColor=e.eyeColor;camCtx.shadowBlur=16;
+  // Dark silhouette
+  camCtx.fillStyle='rgba(0,0,0,0.7)';
+  camCtx.beginPath();camCtx.ellipse(0,-s*0.2,s*0.38,s*0.45,0,0,Math.PI*2);camCtx.fill();
+  camCtx.fillStyle='rgba(0,0,0,0.7)';
+  camCtx.beginPath();camCtx.ellipse(0,s*0.3,s*0.3,s*0.38,0,0,Math.PI*2);camCtx.fill();
+  // Glowing eyes
+  camCtx.fillStyle=e.eyeColor;
+  camCtx.beginPath();camCtx.ellipse(-s*0.14,-s*0.28,s*0.09,s*0.11,0,0,Math.PI*2);camCtx.fill();
+  camCtx.beginPath();camCtx.ellipse(s*0.14,-s*0.28,s*0.09,s*0.11,0,0,Math.PI*2);camCtx.fill();
+  // Name tag
+  camCtx.shadowBlur=0;camCtx.fillStyle='rgba(0,0,0,0.6)';
+  camCtx.fillRect(-s*0.6,s*0.72,s*1.2,s*0.28);
+  camCtx.fillStyle=e.eyeColor;camCtx.font=`bold ${Math.max(6,s*0.18)}px Orbitron,monospace`;
+  camCtx.textAlign='center';camCtx.textBaseline='middle';camCtx.fillText(e.name,0,s*0.86);
+  camCtx.restore();
+}
+
+// ── DRAW OFFICE ───────────────────────────────────────────────────────────
+function drawOffice(){
+  const W2=W,H2=H;
+
+  // Office background - security room
+  const bg=ctx.createLinearGradient(0,0,0,H2);
+  bg.addColorStop(0,'#010408');bg.addColorStop(1,'#020608');
+  ctx.fillStyle=bg;ctx.fillRect(0,0,W2,H2);
+
+  // Ceiling panels with lights
+  ctx.fillStyle='#050a10';ctx.fillRect(0,0,W2,H2*0.12);
+  // Flickering strip lights
+  const flick=Math.sin(Date.now()*0.007)*0.5+0.5;
+  for(let x=W2*0.1;x<W2*0.9;x+=W2*0.25){
+    const lg=ctx.createLinearGradient(x-W2*0.1,0,x+W2*0.1,0);
+    lg.addColorStop(0,'rgba(0,255,204,0)');lg.addColorStop(0.5,`rgba(0,255,204,${flick*0.18})`);lg.addColorStop(1,'rgba(0,255,204,0)');
+    ctx.fillStyle=lg;ctx.fillRect(x-W2*0.1,H2*0.08,W2*0.2,4);
+  }
+
+  // Floor - metal grating
+  const floorG=ctx.createLinearGradient(0,H2*0.7,0,H2);
+  floorG.addColorStop(0,'#060a0c');floorG.addColorStop(1,'#020405');
+  ctx.fillStyle=floorG;ctx.fillRect(0,H2*0.7,W2,H2*0.3);
+  ctx.strokeStyle='rgba(0,150,100,0.06)';ctx.lineWidth=1;
+  for(let x=0;x<W2;x+=24){ctx.beginPath();ctx.moveTo(x,H2*0.7);ctx.lineTo(x,H2);ctx.stroke();}
+  for(let y=H2*0.7;y<H2;y+=24){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W2,y);ctx.stroke();}
+
+  // Security desk in front of player
+  const deskY=H2*0.68;
+  const deskG=ctx.createLinearGradient(0,deskY,0,H2*0.85);
+  deskG.addColorStop(0,'#0a1520');deskG.addColorStop(1,'#050c14');
+  ctx.fillStyle=deskG;ctx.fillRect(W2*0.05,deskY,W2*0.9,H2*0.2);
+  ctx.strokeStyle='rgba(0,150,200,0.2)';ctx.lineWidth=1;ctx.strokeRect(W2*0.05,deskY,W2*0.9,H2*0.2);
+
+  // Monitor screens on desk
+  drawMonitors(W2,H2,deskY);
+
+  // SINGLE DOOR (left side)
+  drawDoor('left',W2,H2);
+  drawHallView('left',W2,H2);
+
+  // Desk edge highlight
+  ctx.fillStyle='rgba(0,180,140,0.08)';
+  ctx.fillRect(W2*0.05,deskY,W2*0.9,3);
+
+  // Power indicator on desk
+  const pct=power/MAX_POWER;
+  ctx.fillStyle='rgba(0,0,0,0.5)';ctx.fillRect(W2*0.38,deskY+8,W2*0.24,12);
+  ctx.fillStyle=pct>0.5?'#00ffcc':pct>0.2?'#ffcc00':'#ff2200';
+  ctx.fillRect(W2*0.38,deskY+8,W2*0.24*pct,12);
+  ctx.fillStyle='rgba(0,200,160,0.6)';ctx.font='bold 9px Orbitron,monospace';
+  ctx.textAlign='center';ctx.fillText('POWER',W2/2,deskY+26);
+
+  // Vignette
+  const vig=ctx.createRadialGradient(W2/2,H2*0.5,H2*0.15,W2/2,H2*0.5,H2*0.9);
+  vig.addColorStop(0,'rgba(0,0,0,0)');
+  vig.addColorStop(1,`rgba(0,0,0,0.7)`);
+  ctx.fillStyle=vig;ctx.fillRect(0,0,W2,H2);
+
+  // Fear flicker when animatronic is at hall
+  const atHall=enemies.some(e=>e.pathIdx===e.pathFull.length-1&&!e.inOffice);
+  if(atHall){
+    const p=Math.sin(Date.now()*0.015)*0.5+0.5;
+    ctx.fillStyle=`rgba(255,0,0,${p*0.08})`;ctx.fillRect(0,0,W2,H2);
+  }
+}
+
+function drawDoor(side,W2,H2){
+  const isLeft=side==='left';
+  const closed=doorLeft;
+  const x=W2*0.38;
+  const w=W2*0.24;
+  const doorH=H2*0.55;
+  const doorY=H2*0.12;
+
+  // Door frame
+  ctx.fillStyle='rgba(0,30,40,0.8)';
+  ctx.fillRect(x,doorY,w,doorH);
+
+  if(closed){
+    // Closed door - solid metal panel
+    const dg=ctx.createLinearGradient(x,0,x+w,0);
+    dg.addColorStop(0,isLeft?'#0a1820':'#0d1820');
+    dg.addColorStop(0.5,'#152530');
+    dg.addColorStop(1,isLeft?'#0d1820':'#0a1820');
+    ctx.fillStyle=dg;ctx.fillRect(x,doorY,w,doorH);
+    // Panel lines
+    ctx.strokeStyle='rgba(0,150,200,0.2)';ctx.lineWidth=1;
+    for(let y=doorY+20;y<doorY+doorH;y+=30){ctx.beginPath();ctx.moveTo(x+4,y);ctx.lineTo(x+w-4,y);ctx.stroke();}
+    // Red warning light (door closed)
+    ctx.shadowColor='#ff2200';ctx.shadowBlur=12;
+    ctx.fillStyle='#ff2200';
+    ctx.beginPath();ctx.arc(isLeft?x+w-8:x+8,doorY+8,5,0,Math.PI*2);ctx.fill();
+    ctx.shadowBlur=0;
+  } else {
+    // Open door - dark corridor visible
+    const dg=ctx.createLinearGradient(isLeft?x:x+w,0,isLeft?x+w:x,0);
+    dg.addColorStop(0,'#000');dg.addColorStop(1,'rgba(0,10,20,0.3)');
+    ctx.fillStyle=dg;ctx.fillRect(x,doorY,w,doorH);
+    // Corridor depth lines
+    ctx.strokeStyle='rgba(0,80,120,0.2)';ctx.lineWidth=1;
+    const cx=isLeft?x+w:x;
+    for(let d=1;d<=4;d++){
+      const s=d/5;ctx.strokeRect(cx-s*(isLeft?1:-1)*w*0.5,doorY+s*doorH*0.5,w*s,doorH*s);
+    }
+    // Green light (door open)
+    ctx.shadowColor='#00ff88';ctx.shadowBlur=8;
+    ctx.fillStyle='#00ff88';
+    ctx.beginPath();ctx.arc(isLeft?x+w-8:x+8,doorY+8,5,0,Math.PI*2);ctx.fill();
+    ctx.shadowBlur=0;
+  }
+
+  // Door frame border
+  ctx.strokeStyle='rgba(0,150,200,0.3)';ctx.lineWidth=2;
+  ctx.strokeRect(x,doorY,w,doorH);
+
+  // DOOR label
+  ctx.fillStyle='rgba(0,200,160,0.5)';ctx.font='bold 10px Orbitron,monospace';
+  ctx.textAlign='center';
+  ctx.fillText((isLeft?'LEFT':'RIGHT')+' DOOR',x+w/2,doorY-6);
+}
+
+function drawHallView(side,W2,H2){
+  // Show if animatronic is in hall
+  const isLeft=side==='left';
+  const e=enemies.find(en=>en.pathIdx===en.pathFull.length-1&&!en.inOffice&&en.path===(isLeft?'left':'right'));
+  if(!e) return;
+  const x=isLeft?W2*0.02:W2*0.78;
+  const w=W2*0.2;
+  const doorH=H2*0.55;
+  const doorY=H2*0.12;
+  const closed=doorLeft;
+  if(closed) return; // can't see through closed door
+
+  // Draw glowing eyes in the corridor
+  const eyeX=W2*0.38+W2*0.24/2, eyeY=doorY+doorH*0.45;
+  const pulse=Math.sin(Date.now()*0.008)*0.3+0.7;
+  ctx.save();
+  ctx.shadowColor=e.eyeColor;ctx.shadowBlur=20*pulse;
+  ctx.fillStyle=e.eyeColor;
+  ctx.globalAlpha=0.85;
+  ctx.beginPath();ctx.ellipse(eyeX-w*0.12,eyeY,w*0.06,w*0.08,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(eyeX+w*0.12,eyeY,w*0.06,w*0.08,0,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;ctx.restore();
+}
+
+function drawMonitors(W2,H2,deskY){
+  // Two small monitor screens showing camera feeds
+  const monW=W2*0.18,monH=H2*0.12;
+  const monitors=[
+    {x:W2*0.12,y:deskY-monH-5,cam:selectedCam},
+    {x:W2*0.68,y:deskY-monH-5,cam:(selectedCam+1)%CAMS.length},
+  ];
+  for(const m of monitors){
+    ctx.fillStyle='#050c14';ctx.fillRect(m.x,m.y,monW,monH);
+    // Tiny camera view
+    ctx.save();ctx.translate(m.x,m.y);
+    ctx.scale(monW/camCanvas.width,monH/camCanvas.height);
+    ctx.drawImage(camCanvas,0,0);
+    ctx.restore();
+    ctx.strokeStyle='rgba(0,180,140,0.4)';ctx.lineWidth=1.5;ctx.strokeRect(m.x,m.y,monW,monH);
+    // Monitor glow
+    const mg=ctx.createRadialGradient(m.x+monW/2,m.y+monH/2,5,m.x+monW/2,m.y+monH/2,monH);
+    mg.addColorStop(0,'rgba(0,255,200,0.04)');mg.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=mg;ctx.fillRect(m.x-10,m.y-10,monW+20,monH+20);
+  }
+}
+
+function drawBigFace(c,cx,cy,s,e){
+  c.save();c.translate(cx,cy);
+  c.shadowColor='#ff0000';c.shadowBlur=60;
+  const hg=c.createRadialGradient(-s*.1,-s*.1,s*.05,0,0,s*.52);
+  hg.addColorStop(0,e.color+'ee');hg.addColorStop(1,e.color+'22');
+  c.fillStyle=hg;c.beginPath();c.ellipse(0,0,s*.5,s*.55,0,0,Math.PI*2);c.fill();
+  c.fillStyle=e.color+'99';
+  c.beginPath();c.arc(-s*.42,-s*.3,s*.14,0,Math.PI*2);c.fill();
+  c.beginPath();c.arc(s*.42,-s*.3,s*.14,0,Math.PI*2);c.fill();
+  c.shadowColor='#ffffff';c.shadowBlur=40;c.fillStyle=e.eyeColor;
+  c.beginPath();c.ellipse(-s*.18,-s*.1,s*.13,s*.15,0,0,Math.PI*2);c.fill();
+  c.beginPath();c.ellipse(s*.18,-s*.1,s*.13,s*.15,0,0,Math.PI*2);c.fill();
+  c.shadowBlur=0;c.fillStyle='#000';
+  c.beginPath();c.arc(-s*.18,-s*.09,s*.07,0,Math.PI*2);c.fill();
+  c.beginPath();c.arc(s*.18,-s*.09,s*.07,0,Math.PI*2);c.fill();
+  c.fillStyle='#050302';c.beginPath();c.ellipse(0,s*.22,s*.36,s*.28,0,0,Math.PI*2);c.fill();
+  c.shadowColor=e.eyeColor;c.shadowBlur=8;c.fillStyle='#e8e0cc';
+  for(let t=-4;t<=4;t++){c.beginPath();c.moveTo(t*s*.07-s*.034,s*.08);c.lineTo(t*s*.07,s*.08+s*.22);c.lineTo(t*s*.07+s*.034,s*.08);c.closePath();c.fill();}
+  c.shadowBlur=0;c.restore();
+}
+
+// ── CLOCK + UI ────────────────────────────────────────────────────────────
+function updateClock(){
+  const mins=(nightTime/NIGHT_DURATION)*360,h=Math.floor(mins/60),m=Math.floor(mins%60);
+  const el=document.getElementById('clock-txt');
+  el.textContent=(h===0?12:h)+':'+(m<10?'0':'')+m+' AM';
+  el.style.color=NIGHT_DURATION-nightTime<60?(Math.floor(Date.now()/400)%2?'#ff4444':'#ffaaaa'):'#aaddff';
+}
+function updateUI(){
+  document.getElementById('score-txt').textContent='⭐ '+score;
+  document.getElementById('night-txt').textContent='NIGHT '+night+' · '+enemies.length+' ACTIVE';
+}
+function showMsg(t){const el=document.getElementById('msg');el.textContent=t;el.style.opacity='1';clearTimeout(msgTimer);msgTimer=setTimeout(()=>el.style.opacity='0',2500);}
+
+function endGame(win){
+  const ov=document.getElementById('overlay');
+  if(win){
+    const more=night<5;
+    if(more){
+      ov.innerHTML=`<h1 style="font-family:'Creepster',cursive;font-size:clamp(1.8rem,6vw,3rem);color:#ff2200;text-shadow:0 0 30px #ff0000;letter-spacing:2px;text-align:center;margin-bottom:8px;">🌅 6 AM — YOU MADE IT!</h1>
+        <p style="color:#00ffcc;font-size:1.1rem;margin:6px 0;">Night ${night} survived! +${500*night} pts</p>
+        <p style="color:#ffd700;">Score: ${score}</p>
+        <p style="color:#ff8888;margin-top:6px;">Night ${night+1}: ${ANIM_DEFS[night]?.name||''} joins the hunt...</p>`;
+      ov.style.display='flex';
+      const btn=document.createElement('button');
+      btn.className='btn'; btn.textContent='▶ NEXT NIGHT';
+      btn.addEventListener('click',()=>{ ea();ov.style.display='none'; startNight(night+1);running=true; });
+      ov.appendChild(btn); ov.appendChild(HS._homeBtn());
+    } else {
+      HS.showGameOver({
+        key:'fnaf4_security', score, overlayEl:ov,
+        title:'🏆 ALL 5 NIGHTS SURVIVED!',
+        subtitle:'You survived the Security Room!',
+        btnLabel:'▶ PLAY AGAIN',
+        onRestart:()=>{ ea();score=0;lives=3;startNight(1);running=true; },
+        hiColor:'#00ffcc',
+        titleStyle:'font-family:\'Creepster\',cursive;font-size:clamp(1.6rem,5vw,2.6rem);color:#ff2200;text-shadow:0 0 30px #ff0000;letter-spacing:2px;text-align:center;margin-bottom:8px',
+        btnClass:'btn'
+      });
+    }
+  } else {
+    HS.showGameOver({
+      key:'fnaf4_security', score, overlayEl:ov,
+      title:'💀 THEY BREACHED THE DOOR!',
+      subtitle:`Night ${night} · Watch the cameras next time...`,
+      btnLabel:'▶ TRY AGAIN',
+      onRestart:()=>{ ea();score=0;lives=3;startNight(1);running=true; },
+      hiColor:'#00ffcc',
+      titleStyle:'font-family:\'Creepster\',cursive;font-size:clamp(1.8rem,6vw,3rem);color:#ff2200;text-shadow:0 0 30px #ff0000;letter-spacing:2px;text-align:center;margin-bottom:8px',
+      btnClass:'btn'
+    });
+  }
+}
+
+// ── LOOP ──────────────────────────────────────────────────────────────────
+// ── MINIMAP ────────────────────────────────────────────────────────────────
+// Ship layout: shows rooms, corridors, animatronic positions, doors
+const MINIMAP_ROOMS=[
+  // Each room: [x,y,w,h, label, camId, color]
+  // Bridge (top centre)
+  {x:0.35,y:0.02,w:0.3, h:0.16,label:'BRIDGE',     cam:0, color:'rgba(0,60,100,0.8)'},
+  // Left corridor
+  {x:0.05,y:0.22,w:0.28,h:0.12,label:'L.CORRIDOR', cam:1, color:'rgba(0,40,60,0.8)'},
+  // Right corridor
+  {x:0.67,y:0.22,w:0.28,h:0.12,label:'R.CORRIDOR', cam:2, color:'rgba(0,40,60,0.8)'},
+  // Cargo bay (centre)
+  {x:0.3, y:0.22,w:0.4, h:0.24,label:'CARGO BAY',  cam:3, color:'rgba(0,40,25,0.8)'},
+  // Engine room (bottom)
+  {x:0.3, y:0.5, w:0.4, h:0.16,label:'ENGINE',     cam:4, color:'rgba(50,20,0,0.8)'},
+  // Left hall (beside office)
+  {x:0.02,y:0.68,w:0.2, h:0.1, label:'L.HALL',     cam:-1,color:'rgba(20,10,10,0.8)'},
+
+  // Security office (bottom centre)
+  {x:0.25,y:0.72,w:0.5, h:0.24,label:'SECURITY',   cam:-1,color:'rgba(0,30,20,0.9)'},
+];
+
+// Corridor connections to draw as lines
+const MINIMAP_PATHS=[
+  // Bridge → Left corridor
+  [[0.35,0.10],[0.19,0.10],[0.19,0.22]],
+  // Bridge → Right corridor
+  [[0.65,0.10],[0.81,0.10],[0.81,0.22]],
+  // Left corridor → Cargo bay
+  [[0.19,0.28],[0.30,0.28]],
+  // Right corridor → Cargo bay
+  [[0.81,0.28],[0.70,0.28]],
+  // Cargo bay → Engine
+  [[0.50,0.46],[0.50,0.50]],
+  // Left corridor → Left hall
+  [[0.12,0.34],[0.12,0.68]],
+  // Right corridor → Right hall
+  [[0.88,0.34],[0.88,0.68]],
+  // Left hall → Office
+  [[0.22,0.73],[0.25,0.73]],
+  // Right hall → Office
+  [[0.78,0.73],[0.75,0.73]],
+];
+
+// Map each path step to a room index for position lookup
+const PATH_TO_ROOM={
+  0:0, 1:1, 2:2, 3:3, 4:4, 'LEFT_HALL':5, 'RIGHT_HALL':6
+};
+
+function drawMinimap(){
+  const mc=document.getElementById('minimap');
+  if(!mc) return;
+  const mCtx=mc.getContext('2d');
+  const mW=mc.width, mH=mc.height;
+
+  mCtx.clearRect(0,0,mW,mH);
+  // Background
+  mCtx.fillStyle='#010408';
+  mCtx.fillRect(0,0,mW,mH);
+
+  // Draw corridor paths first
+  mCtx.strokeStyle='rgba(0,100,80,0.3)'; mCtx.lineWidth=4;
+  for(const path of MINIMAP_PATHS){
+    mCtx.beginPath();
+    mCtx.moveTo(path[0][0]*mW, path[0][1]*mH);
+    for(let i=1;i<path.length;i++) mCtx.lineTo(path[i][0]*mW, path[i][1]*mH);
+    mCtx.stroke();
+  }
+
+  // Draw rooms
+  for(const r of MINIMAP_ROOMS){
+    const rx=r.x*mW, ry=r.y*mH, rw=r.w*mW, rh=r.h*mH;
+    // Room background
+    mCtx.fillStyle=r.color;
+    mCtx.fillRect(rx,ry,rw,rh);
+    // Room border
+    const isSelected=r.cam===selectedCam&&camOpen;
+    mCtx.strokeStyle=isSelected?'#00ffcc':`rgba(0,150,120,0.4)`;
+    mCtx.lineWidth=isSelected?2:1;
+    mCtx.strokeRect(rx,ry,rw,rh);
+    // Room label
+    if(rw>20&&rh>10){
+      mCtx.fillStyle=isSelected?'rgba(0,255,204,0.8)':'rgba(0,200,160,0.45)';
+      mCtx.font=`bold ${Math.max(5,Math.min(7,rw*0.13))}px Orbitron,monospace`;
+      mCtx.textAlign='center'; mCtx.textBaseline='middle';
+      mCtx.fillText(r.label, rx+rw/2, ry+rh/2);
+    }
+  }
+
+  // Single door (left side)
+  mCtx.fillStyle=doorLeft?'#ff2200':'rgba(0,255,80,0.6)';
+  mCtx.fillRect(0.22*mW, 0.72*mH, 0.03*mW, 0.06*mH);
+
+  // YOU marker (security office)
+  const pulse=Math.sin(Date.now()*0.006)*0.4+0.6;
+  mCtx.shadowColor='#00ffcc'; mCtx.shadowBlur=8*pulse;
+  mCtx.fillStyle=`rgba(0,255,204,${pulse})`;
+  mCtx.beginPath();
+  mCtx.arc(0.50*mW, 0.82*mH, 4, 0, Math.PI*2);
+  mCtx.fill();
+  mCtx.shadowBlur=0;
+  mCtx.fillStyle='rgba(0,255,204,0.7)';
+  mCtx.font='bold 5px Orbitron,monospace';
+  mCtx.textAlign='center'; mCtx.textBaseline='top';
+  mCtx.fillText('YOU',0.50*mW, 0.87*mH);
+
+  // Draw each animatronic
+  for(const e of enemies){
+    if(e.inOffice) continue;
+    const roomKey=e.pathFull[e.pathIdx];
+    const roomIdx=PATH_TO_ROOM[roomKey];
+    if(roomIdx===undefined) continue;
+    const room=MINIMAP_ROOMS[roomIdx];
+    if(!room) continue;
+
+    // Position within room (slight spread if multiple)
+    const rx=room.x*mW+room.w*mW*0.5;
+    const ry=room.y*mH+room.h*mH*0.5;
+
+    // Glowing dot
+    const ep=Math.sin(Date.now()*0.01+enemies.indexOf(e))*0.3+0.7;
+    mCtx.shadowColor=e.eyeColor; mCtx.shadowBlur=10*ep;
+    mCtx.fillStyle=e.eyeColor;
+    mCtx.beginPath(); mCtx.arc(rx, ry, 3.5, 0, Math.PI*2); mCtx.fill();
+    mCtx.shadowBlur=0;
+    // Emoji label
+    mCtx.font='8px serif';
+    mCtx.textAlign='center'; mCtx.textBaseline='bottom';
+    mCtx.fillText(e.emoji, rx, ry-3);
+  }
+
+  // Title
+  mCtx.fillStyle='rgba(0,200,160,0.5)';
+  mCtx.font='bold 6px Orbitron,monospace';
+  mCtx.textAlign='left'; mCtx.textBaseline='top';
+  mCtx.fillText('USS FREDDY — DECK MAP',3,2);
+
+  // Legend: doors
+  mCtx.fillStyle='#ff2200'; mCtx.fillRect(3,mH-14,8,5);
+  mCtx.fillStyle='rgba(0,255,80,0.8)'; mCtx.fillRect(3,mH-7,8,5);
+  mCtx.fillStyle='rgba(200,200,200,0.5)'; mCtx.font='5px Orbitron,monospace';
+  mCtx.fillText('CLOSED',13,mH-13);
+  mCtx.fillText('OPEN',13,mH-6);
+}
+
+let camRefresh=0;
+function loop(now){
+  const dt=Math.min((now-lastTime)/1000,0.05);lastTime=now;
+  try{
+    update(dt);
+    drawOffice();
+    drawMinimap();
+    // Refresh camera view periodically (or always when open)
+    camRefresh+=dt;
+    if(camRefresh>0.25||camOpen){camRefresh=0;drawCameraView();}
+  }catch(e){console.error(e);}
+  requestAnimationFrame(loop);
+}
+
+// Keyboard shortcuts
+window.addEventListener('keydown',e=>{
+  if(e.key==='q'||e.key==='Q'||e.key===' ') toggleDoor('left');
+  if(e.key==='c'||e.key==='C') toggleCam();
+});
+
+document.getElementById('startBtn').addEventListener('click',()=>{
+  ea();document.getElementById('overlay').style.display='none';
+  startNight(1);running=true;
+});
+requestAnimationFrame(t=>{lastTime=t;requestAnimationFrame(loop);});
+</script>
+</body>
+</html>
