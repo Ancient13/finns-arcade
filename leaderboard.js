@@ -53,10 +53,12 @@ const HS = {
       const isNew = highlightScore !== null && e.s === highlightScore && i === list.findIndex(x => x.s === highlightScore);
       const rowBg = isNew ? 'rgba(255,215,0,0.12)' : (i % 2 === 0 ? 'rgba(255,255,255,0.04)' : 'transparent');
       const rankCol = i === 0 ? '#ffd700' : i === 1 ? '#ccc' : i === 2 ? '#cd7f32' : '#666';
+      const safeName  = (e.n  + '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3) || '???';
+      const safeScore = parseInt(e.s, 10) || 0;
       return `<tr style="background:${rowBg}">
         <td style="padding:3px 8px;text-align:center;color:${rankCol};font-size:1rem">${medals[i] || (i + 1)}</td>
-        <td style="padding:3px 12px;font-weight:900;letter-spacing:3px;color:#fff;font-size:1rem">${e.n}</td>
-        <td style="padding:3px 10px;color:${c};font-weight:900;font-size:1rem;text-align:right">${e.s}</td>
+        <td style="padding:3px 12px;font-weight:900;letter-spacing:3px;color:#fff;font-size:1rem">${safeName}</td>
+        <td style="padding:3px 10px;color:${c};font-weight:900;font-size:1rem;text-align:right">${safeScore}</td>
         ${isNew ? '<td style="padding:3px 6px;color:#ffd700;font-size:0.7rem;font-weight:900">NEW!</td>' : '<td></td>'}
       </tr>`;
     }).join('');
@@ -89,6 +91,21 @@ const HS = {
    *   btnStyle    {string}   - extra inline CSS for the button
    *   btnClass    {string}   - CSS class for the button
    */
+  /** Creates a small "🏠 Home" button that navigates to index.html */
+  _homeBtn() {
+    const btn = document.createElement('button');
+    btn.textContent = '🏠 Home';
+    btn.setAttribute('style',
+      'margin-top:8px;padding:7px 22px;font-size:0.95rem;font-weight:900;letter-spacing:1px;' +
+      'background:rgba(255,255,255,0.1);color:#ccc;border:1px solid #444;border-radius:30px;' +
+      'cursor:pointer;font-family:inherit;transition:background 0.15s'
+    );
+    btn.addEventListener('mouseenter', () => btn.style.background = 'rgba(255,255,255,0.2)');
+    btn.addEventListener('mouseleave', () => btn.style.background = 'rgba(255,255,255,0.1)');
+    btn.addEventListener('click', () => { window.location.href = 'index.html'; });
+    return btn;
+  },
+
   showGameOver(opts) {
     const {
       key, score, overlayEl, title, subtitle,
@@ -134,6 +151,7 @@ const HS = {
         btn.textContent = btnLabel;
         btn.onclick = onRestart;
         overlayEl.appendChild(btn);
+        overlayEl.appendChild(this._homeBtn());
         // Notify index page to refresh scores
         try { localStorage.setItem('hs_updated', Date.now()); } catch {}
       };
@@ -158,6 +176,7 @@ const HS = {
       btn.textContent = btnLabel;
       btn.addEventListener('click', onRestart);
       overlayEl.appendChild(btn);
+      overlayEl.appendChild(this._homeBtn());
     }
   }
 };

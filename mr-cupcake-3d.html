@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>Mr. Cupcake's House!</title>
+<script src="leaderboard.js"></script>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   body { background:#000; overflow:hidden; font-family:'Arial Black',sans-serif; touch-action:none; }
@@ -848,18 +849,33 @@ function bossDefeated(){
   bossActive=false;
   running=false;
   document.getElementById('boss-hp').style.display='none';
-  showOverlay(
-    '🎉 YOU WIN! 🎉',
-    `You defeated the Evil Cupcake Boss!\n\nFinal Score: ${score}\n\nMr. Cupcake ate through all 3 houses!`,
-    '🧁 PLAY AGAIN!',
-    ()=>{ score=0; playerHP=100; loadFloor(0,0); running=true; startMusic(); }
-  );
+  HS.showGameOver({
+    key: 'cupcake',
+    score,
+    overlayEl: document.getElementById('overlay'),
+    title: '🎉 YOU WIN! 🎉',
+    subtitle: 'You defeated the Evil Cupcake Boss!\nMr. Cupcake ate through all 3 houses!',
+    btnLabel: '🧁 PLAY AGAIN!',
+    onRestart: ()=>{ score=0; playerHP=100; loadFloor(0,0); running=true; startMusic(); },
+    hiColor: '#ff66aa',
+    titleStyle: 'color:#ffaacc;font-size:2.4rem;text-shadow:0 0 20px #ff4499;margin-bottom:8px',
+    btnClass: 'btn'
+  });
 }
 
 function gameOverScreen(){
   running=false;
-  showOverlay('💀 GAME OVER','The Evil Cupcake got you!\nScore: '+score,'🔁 TRY AGAIN',()=>{
-    playerHP=100; score=0; loadFloor(0,0); running=true; startMusic();
+  HS.showGameOver({
+    key: 'cupcake',
+    score,
+    overlayEl: document.getElementById('overlay'),
+    title: '💀 GAME OVER',
+    subtitle: 'The Evil Cupcake got you!',
+    btnLabel: '🔁 TRY AGAIN',
+    onRestart: ()=>{ playerHP=100; score=0; loadFloor(0,0); running=true; startMusic(); },
+    hiColor: '#ff66aa',
+    titleStyle: 'color:#ffaacc;font-size:2.4rem;text-shadow:0 0 20px #ff4499;margin-bottom:8px',
+    btnClass: 'btn'
   });
 }
 

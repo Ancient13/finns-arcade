@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>Helpy Run!</title>
+<script src="leaderboard.js"></script>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   body { background:#0a0a1a; overflow:hidden; font-family:'Arial Black',sans-serif; touch-action:none; user-select:none; }
@@ -471,8 +472,17 @@ function update(dt){
     updateUI();
     if(lives<=0){
       running=false; stopBGMusic();
-      showOverlay('💀 CAUGHT!','Glamrock Freddy got Helpy!\nScore: '+score,'🔄 TRY AGAIN',()=>{
-        score=0;lives=3;level=1;startLevel(1);running=true;startBGMusic();
+      HS.showGameOver({
+        key: 'helpy',
+        score,
+        overlayEl: document.getElementById('overlay'),
+        title: '💀 CAUGHT!',
+        subtitle: 'Glamrock Freddy got Helpy!',
+        btnLabel: '🔄 TRY AGAIN',
+        onRestart: ()=>{ score=0;lives=3;level=1;startLevel(1);running=true;startBGMusic(); },
+        hiColor: '#ddaaff',
+        titleStyle: 'color:#ddaaff;font-size:2.6rem;text-shadow:0 0 20px #8844cc;margin-bottom:6px',
+        btnClass: 'btn'
       });
     } else {
       showMsg('💥 OUCH!\n'+lives+' ❤️ left');
@@ -506,8 +516,17 @@ function update(dt){
       score+=level*50;
       updateUI();
       if(level>=4){
-        showOverlay('🎉 YOU ESCAPED! 🎉','Helpy got away from Glamrock Freddy!\nFinal Score: '+score,'🏆 PLAY AGAIN',()=>{
-          score=0;lives=3;level=1;startLevel(1);running=true;startBGMusic();
+        HS.showGameOver({
+          key: 'helpy',
+          score,
+          overlayEl: document.getElementById('overlay'),
+          title: '🎉 YOU ESCAPED! 🎉',
+          subtitle: 'Helpy got away from Glamrock Freddy!',
+          btnLabel: '🏆 PLAY AGAIN',
+          onRestart: ()=>{ score=0;lives=3;level=1;startLevel(1);running=true;startBGMusic(); },
+          hiColor: '#ddaaff',
+          titleStyle: 'color:#ddaaff;font-size:2.6rem;text-shadow:0 0 20px #8844cc;margin-bottom:6px',
+          btnClass: 'btn'
         });
       } else {
         showOverlay('🚪 LEVEL '+(level+1)+'!','Helpy escaped!\n+'+level*50+' bonus pts\nScore: '+score,'▶ NEXT LEVEL',()=>{
