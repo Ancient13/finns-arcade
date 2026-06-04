@@ -6,6 +6,33 @@
 const HS = {
   MAX: 10,
 
+  /** Auto-inject a fixed in-game Home button when the DOM is ready. */
+  _injectHomeBtn() {
+    const inject = () => {
+      if (document.getElementById('_hs_home_btn')) return;
+      const btn = document.createElement('button');
+      btn.id = '_hs_home_btn';
+      btn.textContent = '🏠';
+      btn.title = 'Back to Finn\'s Arcade';
+      btn.setAttribute('style',
+        'position:fixed;top:10px;left:10px;z-index:999;' +
+        'width:42px;height:42px;border-radius:50%;border:2px solid rgba(255,255,255,0.3);' +
+        'background:rgba(0,0,0,0.55);color:#fff;font-size:1.2rem;' +
+        'cursor:pointer;display:flex;align-items:center;justify-content:center;' +
+        'box-shadow:0 2px 8px rgba(0,0,0,0.5);transition:background 0.15s,transform 0.1s;' +
+        'touch-action:manipulation;-webkit-tap-highlight-color:transparent;'
+      );
+      btn.addEventListener('mouseenter', () => btn.style.background = 'rgba(0,0,0,0.8)');
+      btn.addEventListener('mouseleave', () => btn.style.background = 'rgba(0,0,0,0.55)');
+      btn.addEventListener('touchstart', () => btn.style.transform = 'scale(0.9)', { passive: true });
+      btn.addEventListener('touchend',   () => btn.style.transform = 'scale(1)',   { passive: true });
+      btn.addEventListener('click', () => { window.location.href = 'index.html'; });
+      document.body.appendChild(btn);
+    };
+    if (document.body) inject();
+    else document.addEventListener('DOMContentLoaded', inject);
+  },
+
   /** Returns sorted array of {n, s} objects (name, score). */
   get(key) {
     try { return JSON.parse(localStorage.getItem('hs_' + key) || '[]'); }
@@ -149,7 +176,7 @@ const HS = {
         btn.className = btnClass;
         btn.setAttribute('style', btnStyle);
         btn.textContent = btnLabel;
-        btn.onclick = onRestart;
+        btn.addEventListener('click', () => { overlayEl.style.display = 'none'; onRestart(); });
         overlayEl.appendChild(btn);
         overlayEl.appendChild(this._homeBtn());
         // Notify index page to refresh scores
@@ -174,9 +201,11 @@ const HS = {
       btn.className = btnClass;
       btn.setAttribute('style', (btnStyle || '') + 'margin-top:12px');
       btn.textContent = btnLabel;
-      btn.addEventListener('click', onRestart);
+      btn.addEventListener('click', () => { overlayEl.style.display = 'none'; onRestart(); });
       overlayEl.appendChild(btn);
       overlayEl.appendChild(this._homeBtn());
     }
   }
 };
+
+HS._injectHomeBtn();
