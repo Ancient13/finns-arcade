@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>Apple Catch!</title>
+<script src="leaderboard.js"></script>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   body { background:#87CEEB; overflow:hidden; font-family:'Arial Black',sans-serif; touch-action:none; user-select:none; }
@@ -299,15 +300,33 @@ function levelWin(){
   const bonus=lives*20+level*10;
   score+=bonus;
   updateUI();
-  showOverlay('🍏 APPLE COMPLETE! 🍏',
-    `You collected all your parts!\n+${bonus} bonus pts\nTotal: ${score}`,
-    '🍎 PLAY AGAIN!',
-    ()=>{ startGame(); });
+  HS.showGameOver({
+    key: 'apple_catch',
+    score,
+    overlayEl: document.getElementById('overlay'),
+    title: '🍏 APPLE COMPLETE! 🍏',
+    subtitle: `You collected all your parts!\n+${bonus} bonus pts`,
+    btnLabel: '🍎 PLAY AGAIN!',
+    onRestart: startGame,
+    hiColor: '#88ee22',
+    titleStyle: 'color:#aaddff;font-size:2.2rem;text-shadow:0 0 20px #44aaff;margin-bottom:8px',
+    btnClass: 'btn'
+  });
 }
 function gameOver(){
   running=false; stopBG();
-  showOverlay('💔 DROPPED IT ALL!',`Score: ${score}\nYou lost all your lives!`,'🔄 TRY AGAIN',
-    ()=>{ startGame(); });
+  HS.showGameOver({
+    key: 'apple_catch',
+    score,
+    overlayEl: document.getElementById('overlay'),
+    title: '💔 DROPPED IT ALL!',
+    subtitle: 'You lost all your lives!',
+    btnLabel: '🔄 TRY AGAIN',
+    onRestart: startGame,
+    hiColor: '#88ee22',
+    titleStyle: 'color:#aaddff;font-size:2.2rem;text-shadow:0 0 20px #44aaff;margin-bottom:8px',
+    btnClass: 'btn'
+  });
 }
 
 // ── Drawing ───────────────────────────────────────────────────────────────
