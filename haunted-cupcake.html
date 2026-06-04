@@ -1,0 +1,1285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>The Haunted Cupcake!</title>
+<script src="leaderboard.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Creepster&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:#000;overflow:hidden;touch-action:none;user-select:none;}
+  canvas{display:block;}
+  #ui{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:7px 14px;z-index:10;pointer-events:none;background:linear-gradient(180deg,rgba(0,0,0,0.85),transparent);}
+  .pill{background:rgba(0,0,0,0.7);border-radius:20px;padding:4px 13px;font-size:0.85rem;font-family:'Fredoka One',cursive;}
+  #score-txt{color:#ff88cc;border:1.5px solid #ff88cc44;}
+  #phase-txt{color:#ffcc44;border:1.5px solid #ffcc4444;font-size:0.7rem;}
+  #eaten-txt{color:#88ffcc;border:1.5px solid #88ffcc44;}
+  #suspicion-wrap{position:fixed;top:46px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:2px;pointer-events:none;z-index:10;}
+  #sus-label{color:#ff8844;font-size:0.52rem;letter-spacing:2px;font-family:'Orbitron',monospace;}
+  #sus-bg{width:160px;height:8px;background:rgba(255,100,50,0.12);border-radius:4px;border:1px solid #ff884433;overflow:hidden;}
+  #sus-bar{height:100%;border-radius:4px;background:linear-gradient(90deg,#885500,#ff8844);}
+  #joy-zone{position:fixed;bottom:24px;left:24px;width:110px;height:110px;z-index:15;pointer-events:all;}
+  #joy-base{width:110px;height:110px;border-radius:50%;background:rgba(255,136,204,0.08);border:2px solid rgba(255,136,204,0.3);position:absolute;}
+  #joy-knob{width:42px;height:42px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#ffaadd,#cc2266);border:2px solid #ff88cc;position:absolute;top:34px;left:34px;box-shadow:0 0 10px #ff88cc88;}
+  #joy-right-zone{position:fixed;bottom:24px;right:110px;width:90px;height:90px;z-index:15;pointer-events:all;}
+  #joy-right-base{width:90px;height:90px;border-radius:50%;background:rgba(255,136,204,0.08);border:2px solid rgba(255,136,204,0.28);position:absolute;}
+  #joy-right-knob{width:36px;height:36px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#ffaadd,#cc2266);border:2px solid #ff88cc;position:absolute;top:27px;left:27px;box-shadow:0 0 8px #ff88cc88;}
+  #eat-btn{position:fixed;bottom:24px;right:20px;width:84px;height:84px;border-radius:50%;background:rgba(0,0,0,0.7);border:3px solid #ff88cc;color:#ff88cc;display:flex;align-items:center;justify-content:center;flex-direction:column;z-index:15;cursor:pointer;pointer-events:all;-webkit-tap-highlight-color:transparent;font-family:'Fredoka One',cursive;font-size:0.5rem;gap:2px;}
+  #eat-btn.eating{background:rgba(80,0,40,0.5);border-color:#ffaadd;box-shadow:0 0 18px #ff88cc88;}
+  #fart-btn{position:fixed;bottom:120px;right:20px;width:72px;height:72px;border-radius:50%;background:rgba(0,0,0,0.7);border:3px solid #88ff44;color:#88ff44;display:flex;align-items:center;justify-content:center;flex-direction:column;z-index:15;cursor:pointer;pointer-events:all;-webkit-tap-highlight-color:transparent;font-size:0.45rem;gap:1px;}
+  #fart-btn.empty{border-color:#333;color:#333;background:#0a0a0a;}
+  #fart-charge{position:fixed;bottom:198px;right:20px;width:72px;height:6px;background:rgba(100,255,50,0.1);border-radius:3px;border:1px solid #88ff4433;overflow:hidden;pointer-events:none;z-index:10;}
+  #fart-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,#226600,#88ff44);}
+  #minimap{position:fixed;top:50px;right:10px;z-index:10;pointer-events:none;border:1.5px solid rgba(255,136,204,0.4);border-radius:4px;}
+  #msg{position:fixed;top:36%;left:50%;transform:translate(-50%,-50%);font-family:'Creepster',cursive;font-size:1.8rem;color:#ffcc44;text-shadow:0 0 20px #ff8800;white-space:pre-line;pointer-events:none;opacity:0;transition:opacity 0.3s;z-index:20;text-align:center;background:rgba(0,0,0,0.72);padding:10px 22px;border-radius:14px;}
+  #cutscene{position:fixed;inset:0;z-index:40;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Fredoka One',cursive;}
+  #cutscene h2{color:#ff88cc;font-family:'Creepster',cursive;font-size:clamp(1.4rem,5vw,2.5rem);text-align:center;margin-bottom:12px;text-shadow:0 0 20px #ff44aa;}
+  #cutscene p{color:#ccc;font-size:0.9rem;text-align:center;max-width:360px;line-height:1.6;}
+  #cutscene canvas{border-radius:12px;margin:16px 0;}
+  #cutscene .next-btn{margin-top:16px;padding:10px 36px;font-family:'Creepster',cursive;font-size:1.4rem;color:#ff88cc;border:2px solid #ff88cc;background:transparent;border-radius:30px;cursor:pointer;}
+  #jumpscare{position:fixed;inset:0;z-index:50;display:none;background:#000;align-items:center;justify-content:center;}
+  #overlay{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,5,0.97);}
+  #overlay h1{font-family:'Creepster',cursive;font-size:clamp(1.8rem,6vw,3rem);color:#ff88cc;text-shadow:0 0 30px #ff44aa;text-align:center;margin-bottom:8px;}
+  #overlay p{color:#666;font-size:0.85rem;margin:3px 0;text-align:center;}
+  .btn{margin-top:18px;padding:12px 40px;font-family:'Creepster',cursive;font-size:1.6rem;color:#ff88cc;border:2px solid #ff88cc;background:transparent;border-radius:40px;cursor:pointer;}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<canvas id="minimap" width="100" height="78"></canvas>
+<div id="ui">
+  <div class="pill" id="score-txt">🍬 0</div>
+  <div class="pill" id="phase-txt">🏠 THE HOUSE</div>
+  <div class="pill" id="eaten-txt">😋 0 eaten</div>
+</div>
+<div id="suspicion-wrap">
+  <div id="sus-label">👀 SUSPICION</div>
+  <div id="sus-bg"><div id="sus-bar" style="width:0%"></div></div>
+</div>
+<div id="joy-zone"><div id="joy-base"></div><div id="joy-knob"></div></div>
+<div id="joy-right-zone"><div id="joy-right-base"></div><div id="joy-right-knob"></div></div>
+<div id="eat-btn"><span style="font-size:1.8rem">😋</span><span id="eat-label">EAT IT!</span></div>
+<div id="fart-btn"><span style="font-size:1.5rem">💨</span><span id="fart-label">FART!</span></div>
+<div id="fart-charge"><div id="fart-fill" style="width:100%"></div></div>
+<div id="msg"></div>
+<div id="jumpscare"></div>
+<div id="cutscene" style="display:none"></div>
+
+<div id="overlay">
+  <h1>🧁 THE HAUNTED<br>CUPCAKE!</h1>
+  <p style="color:#ff88cc;font-size:0.92rem;margin-bottom:6px;">You're a haunted cupcake sitting in a bakery window...</p>
+  <p style="color:#ffcc44;font-weight:900;">Someone buys you — now eat EVERYTHING in their house!</p>
+  <p style="color:#ff8844;font-weight:900;">👀 Don't get caught by the owner!</p>
+  <p style="color:#88ffcc;">Sneak around · Eat when they're not looking!</p>
+  <p style="color:#88ff44;font-weight:900;">💨 Fart to scare them away! (3 charges)</p>
+  <p style="color:#444;margin-top:8px;font-size:0.75rem;">Left stick=move · Right stick=turn · 😋=eat nearby things</p>
+  <button class="btn" id="startBtn">▶ LET'S EAT!</button>
+</div>
+
+<script>
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+const mmEl=document.getElementById('minimap');
+const mCtx=mmEl.getContext('2d');
+let W,H;
+function resize(){W=window.innerWidth;H=window.innerHeight;canvas.width=W;canvas.height=H;}
+resize();window.addEventListener('resize',resize);
+
+// ── AUDIO ──────────────────────────────────────────────────────────────────
+let ac=null;
+function ea(){if(!ac)ac=new(window.AudioContext||window.webkitAudioContext)();if(ac.state==='suspended')ac.resume();}
+function beep(f,t,d,v=0.2,s=null){try{ea();const o=ac.createOscillator(),g=ac.createGain();o.type=t;o.frequency.setValueAtTime(f,ac.currentTime);if(s)o.frequency.exponentialRampToValueAtTime(s,ac.currentTime+d);g.gain.setValueAtTime(v,ac.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+d);o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+d+0.01);}catch(e){}}
+function playEat(){[660,880,1100,1320].forEach((f,i)=>setTimeout(()=>beep(f,'sine',0.07,0.2),i*35));}
+function playBusted(){beep(200,'sawtooth',0.8,0.5,60);}
+function playClear(){[523,659,784,1047,1319].forEach((f,i)=>setTimeout(()=>beep(f,'sine',0.15,0.28),i*75));}
+function playFart(){try{ea();const buf=ac.createBuffer(1,ac.sampleRate*0.6,ac.sampleRate);const d=buf.getChannelData(0);for(let i=0;i<d.length;i++){const t=i/ac.sampleRate;d[i]=(Math.random()*2-1)*Math.exp(-t*4)*Math.sin(t*80+Math.sin(t*30)*20)*(1+Math.sin(t*12)*0.5);}const src=ac.createBufferSource(),g=ac.createGain(),f=ac.createBiquadFilter();src.buffer=buf;g.gain.value=0.7;f.type='lowpass';f.frequency.value=400;src.connect(f);f.connect(g);g.connect(ac.destination);src.start();}catch(e){}}
+function playStep(){if(Math.random()<0.3)beep(80+Math.random()*20,'square',0.04,0.06,40);}
+function playOwnerSpot(){beep(880,'square',0.3,0.4,200);}
+
+// ── MAP ────────────────────────────────────────────────────────────────────
+// House layout — 4 rooms
+// 0=floor 1=wall 2=door(open) 3=rug 4=eatable item 5=owner spawn
+const HOUSE_MAP=[
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
+  [1,0,0,3,3,3,0,0,0,0,0,3,3,0,0,0,0,0,0,3,3,3,0,0,1],
+  [1,0,0,3,3,3,0,0,1,0,0,3,3,0,0,0,1,0,0,3,3,3,0,0,1],
+  [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
+  [1,1,1,1,0,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,0,1,1,1,1],
+  [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
+  [1,0,0,3,3,0,0,0,0,0,0,0,3,3,0,0,0,0,0,3,3,0,0,0,1],
+  [1,0,0,3,3,0,0,0,1,0,0,0,3,3,0,0,0,1,0,3,3,0,0,0,1],
+  [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+];
+const COLS=25,ROWS=15;
+let currentFloor=0; // 0=ground floor, 1=second floor
+
+// Second floor layout — 4 bedrooms/study rooms + landing
+const HOUSE_MAP_2=[
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
+  [1,0,0,3,3,3,0,0,0,0,0,3,3,0,0,0,0,0,0,3,3,3,0,0,1],
+  [1,0,0,3,3,3,0,0,1,0,0,3,3,0,0,0,1,0,0,3,3,3,0,0,1],
+  [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
+  [1,1,1,1,0,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,0,1,1,1,1],
+  [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
+  [1,0,0,3,3,0,0,0,0,0,0,0,3,3,0,0,0,0,0,3,3,0,0,0,1],
+  [1,0,0,3,3,0,0,0,1,0,0,0,3,3,0,0,0,1,0,3,3,0,0,0,1],
+  [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+];
+
+// Stair positions (same tile on both floors connects them)
+const STAIR_DOWN={x:12,y:7}; // ground floor staircase tile
+const STAIR_UP={x:12,y:7};   // second floor staircase tile (same spot)
+let map=[];
+
+// Things to eat in each room
+const EATABLES=[
+  // Living room (top-left)
+  {emoji:'🛋️',name:'Sofa',floor:0,        pts:50, x:3.5,  y:2.5,  eaten:false, bob:0},
+  {emoji:'📺',name:'TV',floor:0,          pts:40, x:6.5,  y:1.5,  eaten:false, bob:1},
+  {emoji:'🪴',name:'Plant',floor:0,       pts:20, x:1.5,  y:5.5,  eaten:false, bob:2},
+  {emoji:'☕',name:'Coffee',floor:0,      pts:25, x:4.5,  y:4.5,  eaten:false, bob:3},
+  {emoji:'📰',name:'Newspaper',floor:0,   pts:10, x:5.5,  y:3.5,  eaten:false, bob:0.5},
+  // Kitchen (top-right)
+  {emoji:'🍕',name:'Pizza',floor:0,       pts:80, x:19.5, y:2.5,  eaten:false, bob:1},
+  {emoji:'🍰',name:'Birthday Cake',floor:0,pts:100,x:21.5, y:4.5,  eaten:false, bob:2},
+  {emoji:'🥗',name:'Salad',floor:0,       pts:30, x:22.5, y:2.5,  eaten:false, bob:0},
+  {emoji:'🍷',name:'Wine Glass',floor:0,  pts:35, x:20.5, y:5.5,  eaten:false, bob:1.5},
+  {emoji:'🧀',name:'Cheese',floor:0,      pts:45, x:18.5, y:3.5,  eaten:false, bob:3},
+  // Bathroom (bottom-left)
+  {emoji:'🚿',name:'Shower',floor:0,      pts:30, x:1.5,  y:12.5, eaten:false, bob:0},
+  {emoji:'🚽',name:'Toilet',floor:0,      pts:25, x:6.5,  y:12.5, eaten:false, bob:2},
+  {emoji:'🪥',name:'Toothbrush',floor:0,  pts:15, x:3.5,  y:9.5,  eaten:false, bob:1},
+  {emoji:'🧴',name:'Shampoo',floor:0,     pts:20, x:5.5,  y:9.5,  eaten:false, bob:3},
+  // Bedroom (bottom-right)
+  {emoji:'🛏️',name:'Bed',floor:0,         pts:60, x:19.5, y:12.5, eaten:false, bob:0},
+  {emoji:'💻',name:'Laptop',floor:0,      pts:55, x:22.5, y:9.5,  eaten:false, bob:1},
+  {emoji:'🧸',name:'Teddy Bear',floor:0,  pts:30, x:20.5, y:11.5, eaten:false, bob:2},
+  {emoji:'👟',name:'Sneakers',floor:0,    pts:20, x:18.5, y:12.5, eaten:false, bob:0.5},
+  {emoji:'🎮',name:'Game Console',floor:0,pts:45, x:21.5, y:10.5, eaten:false, bob:1.5},
+  // Hallway bonus
+  {emoji:'🖼️',name:'Painting',    pts:35, x:12.5, y:9.5,  eaten:false, bob:3, floor:0},
+  {emoji:'🪞',name:'Mirror',      pts:25, x:12.5, y:4.5,  eaten:false, bob:2, floor:0},
+  // ── SECOND FLOOR ──────────────────────────────────────────────────────
+  // Study room (top-left)
+  {emoji:'📚',name:'Bookshelf',   pts:45, x:3.5,  y:2.5,  eaten:false, bob:0, floor:1},
+  {emoji:'🖥️',name:'Computer',    pts:55, x:6.5,  y:1.5,  eaten:false, bob:1, floor:1},
+  {emoji:'🪑',name:'Office Chair',pts:30, x:4.5,  y:4.5,  eaten:false, bob:2, floor:1},
+  {emoji:'☕',name:'Mug',         pts:20, x:5.5,  y:3.5,  eaten:false, bob:3, floor:1},
+  // Guest bedroom (top-right)
+  {emoji:'🛏️',name:'Guest Bed',   pts:60, x:20.5, y:2.5,  eaten:false, bob:1, floor:1},
+  {emoji:'🪆',name:'Doll',        pts:25, x:22.5, y:4.5,  eaten:false, bob:0, floor:1},
+  {emoji:'🎸',name:'Guitar',      pts:40, x:18.5, y:3.5,  eaten:false, bob:2, floor:1},
+  {emoji:'🎩',name:'Top Hat',     pts:30, x:21.5, y:5.5,  eaten:false, bob:3, floor:1},
+  // Attic storage (bottom-left)
+  {emoji:'📦',name:'Box',         pts:20, x:2.5,  y:12.5, eaten:false, bob:0, floor:1},
+  {emoji:'🧳',name:'Suitcase',    pts:35, x:5.5,  y:11.5, eaten:false, bob:1, floor:1},
+  {emoji:'🏺',name:'Vase',        pts:40, x:3.5,  y:9.5,  eaten:false, bob:2, floor:1},
+  // Kids room (bottom-right)
+  {emoji:'🎠',name:'Rocking Horse',pts:50,x:20.5, y:11.5, eaten:false, bob:0, floor:1},
+  {emoji:'🧸',name:'Teddy Bear 2',pts:25, x:22.5, y:12.5, eaten:false, bob:1, floor:1},
+  {emoji:'🎪',name:'Toy Circus',  pts:35, x:19.5, y:9.5,  eaten:false, bob:2, floor:1},
+  {emoji:'🪀',name:'Yo-yo',       pts:15, x:21.5, y:13.5, eaten:false, bob:3, floor:1},
+  // Landing
+  {emoji:'🏆',name:'Trophy',      pts:75, x:12.5, y:5.5,  eaten:false, bob:0, floor:1},
+  {emoji:'🎨',name:'Painting 2',  pts:40, x:12.5, y:9.5,  eaten:false, bob:1, floor:1},
+];
+
+function buildMap(){
+  if(currentFloor===0) map=HOUSE_MAP.map(r=>[...r]);
+  else map=HOUSE_MAP_2.map(r=>[...r]);
+}
+function cellAt(x,y){const c=Math.floor(x),r=Math.floor(y);if(c<0||c>=COLS||r<0||r>=ROWS)return 1;return map[r][c];}
+function isWall(x,y){const v=cellAt(x,y);return v===1;}
+function isFree(x,y,r=0.3){return!isWall(x+r,y)&&!isWall(x-r,y)&&!isWall(x,y+r)&&!isWall(x,y-r)&&!isWall(x,y);}
+
+function wallColor(mx,my,side){
+  const d=side?0.65:1.0;
+  if(currentFloor===0){
+    if(mx<=8&&my<=7)  return[Math.floor(200*d),Math.floor(180*d),Math.floor(140*d)];
+    if(mx>=16&&my<=7) return[Math.floor(180*d),Math.floor(220*d),Math.floor(180*d)];
+    if(mx<=8&&my>=8)  return[Math.floor(160*d),Math.floor(180*d),Math.floor(220*d)];
+    if(mx>=16&&my>=8) return[Math.floor(220*d),Math.floor(180*d),Math.floor(200*d)];
+    return[Math.floor(180*d),Math.floor(170*d),Math.floor(160*d)];
+  } else {
+    // Second floor — different colour schemes
+    if(mx<=8&&my<=7)  return[Math.floor(180*d),Math.floor(160*d),Math.floor(220*d)]; // study purple
+    if(mx>=16&&my<=7) return[Math.floor(220*d),Math.floor(200*d),Math.floor(160*d)]; // guest room cream
+    if(mx<=8&&my>=8)  return[Math.floor(160*d),Math.floor(200*d),Math.floor(180*d)]; // attic green
+    if(mx>=16&&my>=8) return[Math.floor(240*d),Math.floor(200*d),Math.floor(220*d)]; // kids room pink
+    return[Math.floor(200*d),Math.floor(185*d),Math.floor(170*d)]; // landing
+  }
+}
+
+function floorColor(mx,my){
+  if(mx<=8&&my<=7)  return'#8b6c52'; // wood
+  if(mx>=16&&my<=7) return'#c8c8b0'; // tile
+  if(mx<=8&&my>=8)  return'#a0b8c8'; // bathroom tile
+  if(mx>=16&&my>=8) return'#c8a090'; // carpet
+  return'#8a7a68';
+}
+
+// ── BFS ───────────────────────────────────────────────────────────────────
+function bfsNext(fx,fy,tx,ty){
+  const fc=Math.floor(fx),fr=Math.floor(fy),tc=Math.floor(tx),tr=Math.floor(ty);
+  if(fc===tc&&fr===tr)return{x:tx,y:ty};
+  const visited=new Set(),prev=new Map(),q=[[fc,fr]];visited.add(fc+','+fr);
+  while(q.length){
+    const[c,r]=q.shift();
+    if(c===tc&&r===tr){let cur=c+','+r;while(true){const p=prev.get(cur);if(!p)break;const[pc,pr]=p;if(pc===fc&&pr===fr)return{x:c+.5,y:r+.5};cur=pc+','+pr;}return{x:tc+.5,y:tr+.5};}
+    for(const[dc,dr]of[[0,1],[0,-1],[1,0],[-1,0]]){const nc=c+dc,nr=r+dr,key=nc+','+nr;if(nc<0||nc>=COLS||nr<0||nr>=ROWS||map[nr][nc]===1||visited.has(key))continue;visited.add(key);prev.set(key,[c,r]);q.push([nc,nr]);}
+  }
+  return{x:fx,y:fy};
+}
+
+// ── STATE ─────────────────────────────────────────────────────────────────
+const FOV=Math.PI/2.2;
+let score=0,running=false,phase='house';
+let suspicion=0,msgTimer=null,bobTime=0;
+let eatenCount=0,stepTimer=0,growlTimer=0,stairCooldown=false;
+let fartCharges=3,fartCooldown=0,fartCloud=null; // fart system
+
+// Player (cupcake)
+let px=12.5,py=7.5,pAngle=0;
+
+// Owner
+// Adult owner
+let ox=20,oy=2,oAngle=0,oTarget={x:20,y:2},obfsTimer=0;
+let ostate='patrol',ostateTimer=4,opatrolIdx=0;
+// Kid
+let kx=3,ky=11,kAngle=0,kTarget={x:3,y:11},kbfsTimer=0;
+let kstate='patrol',kstateTimer=3,kpatrolIdx=3; // starts at different patrol point
+let lives=3;
+
+// Owner patrol route (wanders between rooms)
+// Adult patrols ALL rooms — full loop around the house
+const PATROL_POINTS=[
+  // Living room (top-left)
+  {x:2.5, y:2.5}, {x:6.5, y:1.5}, {x:6.5, y:5.5}, {x:2.5, y:5.5},
+  // Hallway top
+  {x:12.5,y:2.5}, {x:12.5,y:5.5},
+  // Kitchen (top-right)
+  {x:17.5,y:1.5}, {x:22.5,y:2.5}, {x:22.5,y:5.5}, {x:18.5,y:5.5},
+  // Hallway middle
+  {x:12.5,y:8.5}, {x:12.5,y:11.5},
+  // Bedroom (bottom-right)
+  {x:22.5,y:9.5}, {x:18.5,y:12.5}, {x:22.5,y:12.5}, {x:18.5,y:9.5},
+  // Hallway bottom
+  {x:12.5,y:12.5},
+  // Bathroom (bottom-left)
+  {x:6.5, y:12.5}, {x:2.5, y:12.5}, {x:2.5, y:9.5}, {x:6.5, y:9.5},
+  // Back to hallway
+  {x:12.5,y:7.5},
+];
+// Kid patrols faster with a different route — focuses on different rooms
+const KID_PATROL=[
+  // Bathroom (bottom-left) — kid hangs out here
+  {x:3.5, y:9.5}, {x:5.5, y:12.5}, {x:2.5, y:12.5},
+  // Hallway
+  {x:12.5,y:12.5}, {x:12.5,y:9.5},
+  // Bedroom (bottom-right)
+  {x:19.5,y:12.5}, {x:22.5,y:10.5}, {x:20.5,y:8.5},
+  // Hallway
+  {x:12.5,y:7.5}, {x:12.5,y:4.5},
+  // Living room (top-left) — runs through
+  {x:5.5, y:5.5}, {x:2.5, y:2.5}, {x:5.5, y:1.5},
+  // Hallway top
+  {x:12.5,y:2.5},
+  // Kitchen (top-right)
+  {x:18.5,y:1.5}, {x:22.5,y:3.5}, {x:22.5,y:5.5},
+  // Back
+  {x:12.5,y:6.5},
+];
+
+function startGame(){
+  currentFloor=0;buildMap();
+  px=12.5;py=7.5;pAngle=0;
+  ox=20;oy=2;oAngle=0;
+  oTarget={x:PATROL_POINTS[0].x,y:PATROL_POINTS[0].y};
+  obfsTimer=0;ostate='patrol';ostateTimer=4;opatrolIdx=0;
+  kx=3;ky=11;kAngle=0;
+  kTarget={x:KID_PATROL[3].x,y:KID_PATROL[3].y};
+  kbfsTimer=0;kstate='patrol';kstateTimer=3;kpatrolIdx=3;
+  suspicion=0;eatenCount=0;lives=3;score=0;
+  for(const e of EATABLES){e.eaten=false;e.bob=Math.random()*Math.PI*2;}
+  updateUI();
+}
+
+// ── CONTROLS ─────────────────────────────────────────────────────────────
+const keys={};
+window.addEventListener('keydown',e=>{keys[e.key]=true;if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key))e.preventDefault();if(e.key==='e'||e.key==='E')tryEat();});
+window.addEventListener('keyup',e=>keys[e.key]=false);
+
+// Left joystick
+const jZone=document.getElementById('joy-zone'),jKnob=document.getElementById('joy-knob');
+let jActive=false,jTouchId=null,jx=0,jy=0;
+function jSet(sx,sy){const r=jZone.getBoundingClientRect();const ox2=sx-r.left-55,oy2=sy-r.top-55;const d=Math.min(32,Math.hypot(ox2,oy2)),a=Math.atan2(oy2,ox2);jx=Math.cos(a)*d/32;jy=Math.sin(a)*d/32;jKnob.style.left=(34+jx*32)+'px';jKnob.style.top=(34+jy*32)+'px';jActive=true;}
+function jClear(){jActive=false;jx=0;jy=0;jKnob.style.left='34px';jKnob.style.top='34px';}
+jZone.addEventListener('touchstart',e=>{e.preventDefault();const t=e.changedTouches[0];jTouchId=t.identifier;jSet(t.clientX,t.clientY);});
+jZone.addEventListener('touchmove',e=>{e.preventDefault();for(const t of e.changedTouches)if(t.identifier===jTouchId)jSet(t.clientX,t.clientY);});
+jZone.addEventListener('touchend',e=>{e.preventDefault();jClear();});
+jZone.addEventListener('mousedown',e=>jSet(e.clientX,e.clientY));
+window.addEventListener('mousemove',e=>{if(jActive&&!jTouchId)jSet(e.clientX,e.clientY);});
+window.addEventListener('mouseup',()=>{if(!jTouchId)jClear();});
+
+// Right joystick (turn)
+const jRZone=document.getElementById('joy-right-zone'),jRKnob=document.getElementById('joy-right-knob');
+let jRActive=false,jRTouchId=null,jRx=0;
+function jRSet(sx,sy){const r=jRZone.getBoundingClientRect();const ox2=sx-r.left-45;const d=Math.min(24,Math.abs(ox2));jRx=(ox2>0?1:-1)*d/24;jRKnob.style.left=(27+jRx*24)+'px';jRActive=true;}
+function jRClear(){jRActive=false;jRx=0;jRKnob.style.left='27px';}
+jRZone.addEventListener('touchstart',e=>{e.preventDefault();const t=e.changedTouches[0];jRTouchId=t.identifier;jRSet(t.clientX,t.clientY);});
+jRZone.addEventListener('touchmove',e=>{e.preventDefault();for(const t of e.changedTouches)if(t.identifier===jRTouchId)jRSet(t.clientX,t.clientY);});
+jRZone.addEventListener('touchend',e=>{e.preventDefault();jRClear();});
+jRZone.addEventListener('mousedown',e=>jRSet(e.clientX,e.clientY));
+window.addEventListener('mousemove',e=>{if(jRActive&&!jRTouchId)jRSet(e.clientX,e.clientY);});
+window.addEventListener('mouseup',()=>{if(!jRTouchId)jRClear();});
+
+// Eat button
+const eatBtn=document.getElementById('eat-btn');
+eatBtn.addEventListener('touchstart',e=>{e.preventDefault();ea();tryEat();});
+eatBtn.addEventListener('mousedown',()=>{ea();tryEat();});
+
+// Fart button
+const fartBtn=document.getElementById('fart-btn');
+fartBtn.addEventListener('touchstart',e=>{e.preventDefault();ea();tryFart();});
+fartBtn.addEventListener('mousedown',()=>{ea();tryFart();});
+window.addEventListener('keydown',e=>{if(e.key==='f'||e.key==='F')tryFart();});
+
+function tryFart(){
+  if(!running||fartCharges<=0||fartCooldown>0)return;
+  fartCharges--;fartCooldown=8; // 8 sec cooldown
+  playFart();
+  // Spawn green fart cloud at player position
+  fartCloud={x:px,y:py,life:3.5,radius:2.5,alpha:1};
+  showMsg('💨 PARP!!\nRUN AWAY!!');
+  // Push them away in update loop using scared state
+  ostate='scared';ostateTimer=4;
+  kstate='scared';kstateTimer=3;
+  updateUI();
+}
+
+function tryEat(){
+  if(!running)return;
+  let best=null,bestDist=1.2;
+  for(const e of EATABLES){
+    if(e.eaten)continue;
+    const d=Math.hypot(e.x-px,e.y-py);
+    if(d<bestDist){bestDist=d;best=e;}
+  }
+  if(best){
+    best.eaten=true;eatenCount++;score+=best.pts;
+    playEat();showMsg(best.emoji+' '+best.name+'!\n+'+best.pts+' pts 😋');
+    suspicion=Math.min(1,suspicion+0.08);
+    updateUI();
+    if(EATABLES.every(e=>e.eaten)){running=false;playClear();endGame(true);return;}
+  } else {
+    showMsg('Nothing here!\nGet closer 😅');
+  }
+}
+
+// ── UPDATE ────────────────────────────────────────────────────────────────
+let lastTime=0;
+function update(dt){
+  if(!running)return;
+  bobTime+=dt;
+
+  // Turn + move
+  if(keys['ArrowLeft']||keys['a']||keys['A'])pAngle-=2.2*dt;
+  if(keys['ArrowRight']||keys['d']||keys['D'])pAngle+=2.2*dt;
+  if(jRActive)pAngle+=jRx*3.5*dt;
+
+  let mvx=0,mvy=0;
+  if(keys['ArrowUp']||keys['w']||keys['W']){mvx+=Math.cos(pAngle);mvy+=Math.sin(pAngle);}
+  if(keys['ArrowDown']||keys['s']||keys['S']){mvx-=Math.cos(pAngle);mvy-=Math.sin(pAngle);}
+  if(jActive){
+    mvx+=Math.cos(pAngle)*(-jy)*1.8-Math.sin(pAngle)*jx;
+    mvy+=Math.sin(pAngle)*(-jy)*1.8+Math.cos(pAngle)*jx;
+  }
+  const mag=Math.hypot(mvx,mvy);
+  if(mag>0.05){
+    const spd=3.5*dt;mvx=mvx/mag*spd;mvy=mvy/mag*spd;
+    const PR=0.32;
+    if(!isWall(px+mvx+PR,py)&&!isWall(px+mvx-PR,py)&&!isWall(px+mvx,py+PR)&&!isWall(px+mvx,py-PR))px+=mvx;
+    if(!isWall(px,py+mvy+PR)&&!isWall(px,py+mvy-PR)&&!isWall(px+PR,py+mvy)&&!isWall(px-PR,py+mvy))py+=mvy;
+    px=Math.max(0.6,Math.min(COLS-0.6,px));py=Math.max(0.6,Math.min(ROWS-0.6,py));
+    if(isWall(px,py)||!isFree(px,py,PR)){let f=false;for(let r=0.1;r<2.5&&!f;r+=0.1)for(const[ddx,ddy]of[[1,0],[-1,0],[0,1],[0,-1]]){const nx=px+ddx*r,ny=py+ddy*r;if(!isWall(nx,ny)&&isFree(nx,ny,PR)){px=nx;py=ny;f=true;break;}}if(!f){px=12.5;py=7.5;}}
+    stepTimer-=dt;if(stepTimer<=0){stepTimer=0.25;playStep();}
+  }
+
+  // Stair detection — walk to stair tile to change floor
+  const stairTile=currentFloor===0?STAIR_DOWN:STAIR_UP;
+  if(Math.abs(px-stairTile.x-0.5)<0.7&&Math.abs(py-stairTile.y-0.5)<0.7){
+    if(!stairCooldown){
+      stairCooldown=true;
+      setTimeout(()=>stairCooldown=false,1200);
+      currentFloor=1-currentFloor;
+      buildMap();
+      // Keep player at same stair spot on new floor
+      px=stairTile.x+0.5; py=stairTile.y+0.5;
+      showMsg(currentFloor===1?'🪜 Going upstairs!\nSECOND FLOOR!':'🪜 Going downstairs!\nGROUND FLOOR!');
+      updateUI();
+    }
+  }
+
+  // Update eatables bob
+  for(const e of EATABLES)e.bob+=dt*2.5;
+
+  // Fart cooldown recharge
+  if(fartCooldown>0){fartCooldown-=dt;if(fartCooldown<=0&&fartCharges<3)fartCharges=Math.min(3,fartCharges+1);}
+  // Fart cloud lifetime
+  if(fartCloud){fartCloud.life-=dt;fartCloud.alpha=Math.max(0,fartCloud.life/3.5);if(fartCloud.life<=0)fartCloud=null;}
+  // Update fart UI
+  document.getElementById('fart-fill').style.width=(fartCharges/3*100)+'%';
+  document.getElementById('fart-btn').className=fartCharges<=0?'empty':'';
+  document.getElementById('fart-label').textContent=fartCharges<=0?'😮‍💨':'FART!';
+
+  // ── OWNER AI ────────────────────────────────────────────────────────────
+  const dist=Math.hypot(ox-px,oy-py);
+  const canSee=dist<4.5;
+
+  // Suspicion rises when owner can see cupcake
+  if(canSee){suspicion=Math.min(1,suspicion+dt*0.35);}
+  else{suspicion=Math.max(0,suspicion-dt*0.08);}
+  document.getElementById('sus-bar').style.width=(suspicion*100)+'%';
+  document.getElementById('sus-bar').style.background=suspicion>0.65?'linear-gradient(90deg,#880000,#ff2244)':suspicion>0.3?'linear-gradient(90deg,#664400,#ff8800)':'linear-gradient(90deg,#004488,#4488ff)';
+
+  if(suspicion>=1){doBusted();return;}
+
+  growlTimer=Math.max(0,growlTimer-dt);
+  ostateTimer-=dt;obfsTimer-=dt;
+
+  if(ostate==='scared'){
+    // Run away from player!
+    if(obfsTimer<=0){
+      obfsTimer=0.3;
+      const fleeX=ox+(ox-px)*2,fleeY=oy+(oy-py)*2;
+      const n=bfsNext(ox,oy,Math.max(0.5,Math.min(COLS-0.5,fleeX)),Math.max(0.5,Math.min(ROWS-0.5,fleeY)));
+      const edx=n.x-ox,edy=n.y-oy,edist=Math.hypot(edx,edy);
+      if(edist>0.05){const spd=2.8*dt,enx=edx/edist,eny=edy/edist;if(isFree(ox+enx*spd,oy))ox+=enx*spd;if(isFree(ox,oy+eny*spd))oy+=eny*spd;oAngle=Math.atan2(edy,edx);}
+    }
+    if(ostateTimer<=0){ostate='patrol';suspicion=Math.max(0,suspicion-0.3);}
+  } else if(ostate==='patrol'){
+    // Walk patrol route
+    if(obfsTimer<=0){
+      obfsTimer=0.4;
+      const n=bfsNext(ox,oy,oTarget.x,oTarget.y);
+      const edx=n.x-ox,edy=n.y-oy,edist=Math.hypot(edx,edy);
+      if(edist>0.08){
+        const spd=1.4*dt,enx=edx/edist,eny=edy/edist;
+        if(isFree(ox+enx*spd,oy))ox+=enx*spd;
+        if(isFree(ox,oy+eny*spd))oy+=eny*spd;
+        oAngle=Math.atan2(edy,edx);
+      } else {
+        // Reached patrol point, move to next
+        opatrolIdx=(opatrolIdx+1)%PATROL_POINTS.length;
+        oTarget={...PATROL_POINTS[opatrolIdx]};
+        // Pause briefly as if checking the room
+        obfsTimer=0.8+Math.random()*1.2;
+      }
+    }
+    if(canSee&&suspicion>0.4){ostate='investigate';ostateTimer=3+Math.random()*2;playOwnerSpot();showMsg('👀 They spotted you!\nRUN!');}
+  } else if(ostate==='investigate'){
+    // Chase player
+    if(obfsTimer<=0){
+      obfsTimer=0.35;
+      const n=bfsNext(ox,oy,px,py);
+      const edx=n.x-ox,edy=n.y-oy,edist=Math.hypot(edx,edy);
+      if(edist>0.05){
+        const spd=2.2*dt,enx=edx/edist,eny=edy/edist;
+        if(isFree(ox+enx*spd,oy))ox+=enx*spd;
+        if(isFree(ox,oy+eny*spd))oy+=eny*spd;
+        oAngle=Math.atan2(edy,edx);
+      }
+    }
+    if(!canSee&&suspicion<0.15){ostate='patrol';ostateTimer=3;}
+    if(ostateTimer<=0){ostate='patrol';}
+  }
+
+  ox=Math.max(0.5,Math.min(COLS-0.5,ox));oy=Math.max(0.5,Math.min(ROWS-0.5,oy));
+  if(!isFree(ox,oy)){let f=false;for(let r=0.1;r<2&&!f;r+=0.1)for(const[ddx,ddy]of[[1,0],[-1,0],[0,1],[0,-1]])if(isFree(ox+ddx*r,oy+ddy*r)){ox+=ddx*r;oy+=ddy*r;f=true;break;}if(!f){ox=20;oy=2;}}
+
+  // ── KID AI ────────────────────────────────────────────────────────────
+  const kdist=Math.hypot(kx-px,ky-py);
+  const kCanSee=kdist<3.5; // kid has shorter sight range
+  if(kCanSee)suspicion=Math.min(1,suspicion+dt*0.25);
+  kstateTimer-=dt;kbfsTimer-=dt;
+  if(kstate==='scared'){
+    if(kbfsTimer<=0){
+      kbfsTimer=0.25;
+      const fleeX=kx+(kx-px)*2,fleeY=ky+(ky-py)*2;
+      const n=bfsNext(kx,ky,Math.max(0.5,Math.min(COLS-0.5,fleeX)),Math.max(0.5,Math.min(ROWS-0.5,fleeY)));
+      const kdx=n.x-kx,kdy=n.y-ky,kdist2=Math.hypot(kdx,kdy);
+      if(kdist2>0.05){const kspd=3.2*dt,knx=kdx/kdist2,kny=kdy/kdist2;if(isFree(kx+knx*kspd,ky))kx+=knx*kspd;if(isFree(kx,ky+kny*kspd))ky+=kny*kspd;kAngle=Math.atan2(kdy,kdx);}
+    }
+    if(kstateTimer<=0){kstate='patrol';suspicion=Math.max(0,suspicion-0.2);}
+  } else if(kstate==='patrol'){
+    if(kbfsTimer<=0){
+      kbfsTimer=0.4;
+      const kn=bfsNext(kx,ky,kTarget.x,kTarget.y);
+      const kdx=kn.x-kx,kdy=kn.y-ky,kdist2=Math.hypot(kdx,kdy);
+      if(kdist2>0.08){
+        const kspd=1.8*dt,knx=kdx/kdist2,kny=kdy/kdist2; // kid moves faster!
+        if(isFree(kx+knx*kspd,ky))kx+=knx*kspd;
+        if(isFree(kx,ky+kny*kspd))ky+=kny*kspd;
+        kAngle=Math.atan2(kdy,kdx);
+      } else {
+        kpatrolIdx=(kpatrolIdx+1)%KID_PATROL.length;
+        kTarget={...KID_PATROL[kpatrolIdx]};
+        kbfsTimer=0.4+Math.random()*0.8;
+      }
+    }
+    if(kCanSee&&suspicion>0.3){kstate='investigate';kstateTimer=3+Math.random()*2;playOwnerSpot();showMsg('👦 THE KID SAW YOU!\nRUN!!');}
+  } else if(kstate==='investigate'){
+    if(kbfsTimer<=0){
+      kbfsTimer=0.3;
+      const kn=bfsNext(kx,ky,px,py);
+      const kdx=kn.x-kx,kdy=kn.y-ky,kdist2=Math.hypot(kdx,kdy);
+      if(kdist2>0.05){
+        const kspd=2.6*dt,knx=kdx/kdist2,kny=kdy/kdist2; // kid RUNS fast!
+        if(isFree(kx+knx*kspd,ky))kx+=knx*kspd;
+        if(isFree(kx,ky+kny*kspd))ky+=kny*kspd;
+        kAngle=Math.atan2(kdy,kdx);
+      }
+    }
+    if(!kCanSee&&suspicion<0.1){kstate='patrol';kstateTimer=2;}
+    if(kstateTimer<=0){kstate='patrol';}
+  }
+  kx=Math.max(0.5,Math.min(COLS-0.5,kx));ky=Math.max(0.5,Math.min(ROWS-0.5,ky));
+  if(!isFree(kx,ky)){let f=false;for(let r=0.1;r<2&&!f;r+=0.1)for(const[ddx,ddy]of[[1,0],[-1,0],[0,1],[0,-1]])if(isFree(kx+ddx*r,ky+ddy*r)){kx+=ddx*r;ky+=ddy*r;f=true;break;}if(!f){kx=3;ky=11;}}
+
+  if(dist<0.65||kdist<0.55){doBusted();return;}
+  score+=dt*2;
+  if(Math.floor(bobTime)%8===0&&Math.floor(bobTime)!==Math.floor(bobTime-dt))updateUI();
+}
+
+function doBusted(){
+  running=false;playBusted();
+  lives=Math.max(0,lives-1);
+  const js=document.getElementById('jumpscare');js.style.display='flex';
+  const jsc=document.createElement('canvas');jsc.width=W;jsc.height=H;js.appendChild(jsc);
+  const jCtx=jsc.getContext('2d');
+  jCtx.fillStyle='#ff4400';jCtx.fillRect(0,0,W,H);
+  setTimeout(()=>{
+    jCtx.fillStyle='#000';jCtx.fillRect(0,0,W,H);
+    // Draw shocked owner face
+    drawOwnerFace(jCtx,W/2,H/2,Math.min(W,H)*0.4);
+    jCtx.fillStyle='#ff8844';jCtx.font=`bold ${Math.min(32,W*0.06)}px Creepster,cursive`;
+    jCtx.textAlign='center';jCtx.textBaseline='middle';
+    jCtx.fillText('THE CUPCAKE IS ALIVE!!!',W/2,H*0.82);
+    setTimeout(()=>{
+      js.style.display='none';js.innerHTML='';
+      if(lives<=0){endGame(false);return;}
+      suspicion=0;px=12.5;py=7.5;ox=20;oy=2;ostate='patrol';opatrolIdx=0;oTarget={...PATROL_POINTS[0]};kx=3;ky=11;kstate='patrol';kpatrolIdx=3;kTarget={...KID_PATROL[3]};
+      showMsg('😱 CAUGHT!\n'+lives+' lives left\nKeep eating!');
+      updateUI();running=true;
+    },2200);
+  },180);
+}
+
+// ── DDA RAYCASTER ─────────────────────────────────────────────────────────
+function castRay(angle){
+  const cosA=Math.cos(angle),sinA=Math.sin(angle);
+  let mapX=Math.floor(px),mapY=Math.floor(py);
+  const dDX=Math.abs(cosA)<1e-10?1e30:Math.abs(1/cosA),dDY=Math.abs(sinA)<1e-10?1e30:Math.abs(1/sinA);
+  let stepX,stepY,sideX,sideY;
+  if(cosA<0){stepX=-1;sideX=(px-mapX)*dDX;}else{stepX=1;sideX=(mapX+1-px)*dDX;}
+  if(sinA<0){stepY=-1;sideY=(py-mapY)*dDY;}else{stepY=1;sideY=(mapY+1-py)*dDY;}
+  let side=0,hitMx=0,hitMy=0;
+  for(let i=0;i<100;i++){
+    if(sideX<sideY){sideX+=dDX;mapX+=stepX;side=0;}else{sideY+=dDY;mapY+=stepY;side=1;}
+    if(mapX<0||mapX>=COLS||mapY<0||mapY>=ROWS)return{dist:20,side,mx:mapX,my:mapY};
+    if(map[mapY][mapX]===1){hitMx=mapX;hitMy=mapY;break;}
+  }
+  const dist=side===0?(mapX-px+(1-stepX)/2)/cosA:(mapY-py+(1-stepY)/2)/sinA;
+  return{dist:Math.max(0.1,dist),side,mx:hitMx,my:hitMy};
+}
+
+// ── DRAW ─────────────────────────────────────────────────────────────────
+// Third-person camera: follows Mr. Cupcake from above at an angle
+const CAM_ZOOM=48; // pixels per tile
+
+function drawScene(){
+  const W2=W,H2=H;
+
+  // Camera offset — keep player centred
+  const camX=px*CAM_ZOOM-W2/2;
+  const camY=py*CAM_ZOOM-H2/2;
+
+  ctx.save();
+  ctx.translate(-camX,-camY);
+
+  // ── DRAW FLOOR TILES ──────────────────────────────────────────────────
+  const startC=Math.max(0,Math.floor(camX/CAM_ZOOM)-1);
+  const endC=Math.min(COLS,Math.ceil((camX+W2)/CAM_ZOOM)+1);
+  const startR=Math.max(0,Math.floor(camY/CAM_ZOOM)-1);
+  const endR=Math.min(ROWS,Math.ceil((camY+H2)/CAM_ZOOM)+1);
+
+  for(let r=startR;r<endR;r++){
+    for(let c=startC;c<endC;c++){
+      const tx=c*CAM_ZOOM,ty=r*CAM_ZOOM,v=map[r]?.[c]??1;
+      if(v===1){
+        // Wall — draw as thick block with top colour + dark side
+        const wc=wallColor(c,r,false);
+        ctx.fillStyle=`rgb(${wc[0]},${wc[1]},${wc[2]})`;
+        ctx.fillRect(tx,ty,CAM_ZOOM,CAM_ZOOM);
+        // Top highlight
+        ctx.fillStyle='rgba(255,255,255,0.15)';
+        ctx.fillRect(tx,ty,CAM_ZOOM,4);
+        ctx.fillRect(tx,ty,4,CAM_ZOOM);
+        // Dark border
+        ctx.strokeStyle='rgba(0,0,0,0.3)';ctx.lineWidth=1;
+        ctx.strokeRect(tx,ty,CAM_ZOOM,CAM_ZOOM);
+      } else {
+        // Floor
+        const fc=floorColor(c,r);
+        ctx.fillStyle=fc;ctx.fillRect(tx,ty,CAM_ZOOM,CAM_ZOOM);
+        // Subtle grid lines
+        ctx.strokeStyle='rgba(0,0,0,0.04)';ctx.lineWidth=0.5;
+        ctx.strokeRect(tx,ty,CAM_ZOOM,CAM_ZOOM);
+        // Rug tiles
+        if(v===3){
+          ctx.fillStyle='rgba(180,120,80,0.35)';
+          ctx.fillRect(tx+4,ty+4,CAM_ZOOM-8,CAM_ZOOM-8);
+          ctx.strokeStyle='rgba(140,80,40,0.4)';ctx.lineWidth=1;
+          ctx.strokeRect(tx+4,ty+4,CAM_ZOOM-8,CAM_ZOOM-8);
+        }
+      }
+    }
+  }
+
+  // ── EATABLES ────────────────────────────────────────────────────────────
+  for(const e of EATABLES){
+    if(e.eaten||e.floor!==currentFloor)continue;
+    const ex2=e.x*CAM_ZOOM,ey2=e.y*CAM_ZOOM;
+    const bob=Math.sin(e.bob)*3;
+    const near=Math.hypot(e.x-px,e.y-py)<1.4;
+    if(near){ctx.shadowColor='#ffcc44';ctx.shadowBlur=14;}
+    ctx.font=`${CAM_ZOOM*0.72}px serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(e.emoji,ex2,ey2+bob);
+    if(near){
+      ctx.shadowBlur=0;
+      ctx.fillStyle='rgba(255,220,60,0.9)';
+      ctx.font=`bold ${CAM_ZOOM*0.2}px Fredoka One,cursive`;
+      ctx.fillText('😋 EAT!',ex2,ey2-CAM_ZOOM*0.55);
+    }
+    ctx.shadowBlur=0;
+  }
+
+  // ── STAIRCASE ────────────────────────────────────────────────────────────
+  const stTile=currentFloor===0?STAIR_DOWN:STAIR_UP;
+  const stX=(stTile.x+0.5)*CAM_ZOOM,stY=(stTile.y+0.5)*CAM_ZOOM;
+  ctx.shadowColor='#ffcc44';ctx.shadowBlur=12;
+  ctx.font=`${CAM_ZOOM*0.8}px serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(currentFloor===0?'🪜':'🪜',stX,stY);
+  ctx.shadowBlur=0;
+  const stNear=Math.hypot(stTile.x+0.5-px,stTile.y+0.5-py)<1;
+  if(stNear){
+    ctx.fillStyle='rgba(255,220,60,0.9)';
+    ctx.font=`bold ${CAM_ZOOM*0.22}px Fredoka One,cursive`;
+    ctx.fillText(currentFloor===0?'⬆️ Upstairs!':'⬇️ Downstairs!',stX,stY-CAM_ZOOM*0.6);
+  }
+
+  // ── OWNER (adult) ────────────────────────────────────────────────────────
+  drawOwner3P(ox*CAM_ZOOM,oy*CAM_ZOOM,oAngle,ostate==='investigate'||ostate==='scared','adult');
+
+  // ── KID ──────────────────────────────────────────────────────────────────
+  drawOwner3P(kx*CAM_ZOOM,ky*CAM_ZOOM,kAngle,kstate==='investigate'||kstate==='scared','kid');
+
+  // ── FART CLOUD ───────────────────────────────────────────────────────────
+  if(fartCloud&&fartCloud.alpha>0){
+    const pulse=Math.sin(bobTime*6)*0.15+0.85;
+    const fcx=fartCloud.x*CAM_ZOOM,fcy=fartCloud.y*CAM_ZOOM;
+    const rad=fartCloud.radius*CAM_ZOOM*(1.5-fartCloud.life/3.5*0.5);
+    const fg=ctx.createRadialGradient(fcx,fcy,0,fcx,fcy,rad);
+    fg.addColorStop(0,`rgba(120,230,40,${fartCloud.alpha*0.55*pulse})`);
+    fg.addColorStop(0.5,`rgba(80,180,20,${fartCloud.alpha*0.3})`);
+    fg.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=fg;ctx.beginPath();ctx.arc(fcx,fcy,rad,0,Math.PI*2);ctx.fill();
+    // Floating puffs
+    for(let i=0;i<4;i++){
+      const a=bobTime*1.5+i*1.57;
+      const fx2=fcx+Math.cos(a)*rad*0.5,fy2=fcy+Math.sin(a)*rad*0.5;
+      ctx.globalAlpha=fartCloud.alpha*0.6;
+      ctx.font=`${CAM_ZOOM*0.5+i*4}px serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('💨',fx2,fy2);
+    }
+    ctx.globalAlpha=1;
+  }
+
+  // ── MR. CUPCAKE (player) ─────────────────────────────────────────────────
+  drawCupcake3P(px*CAM_ZOOM,py*CAM_ZOOM,pAngle);
+
+  ctx.restore(); // end camera transform
+
+  // ── SCREEN-SPACE OVERLAYS ───────────────────────────────────────────────
+  // Suspicion vignette
+  if(suspicion>0.2){
+    const vig=ctx.createRadialGradient(W2/2,H2/2,H2*0.15,W2/2,H2/2,H2*0.9);
+    vig.addColorStop(0,'rgba(0,0,0,0)');
+    vig.addColorStop(1,`rgba(255,${Math.floor(80-suspicion*60)},0,${suspicion*0.5})`);
+    ctx.fillStyle=vig;ctx.fillRect(0,0,W2,H2);
+  }
+  if(suspicion>0.7&&Math.sin(bobTime*7)>0.85){
+    ctx.fillStyle=`rgba(255,100,0,${(suspicion-0.7)*0.35})`;ctx.fillRect(0,0,W2,H2);
+  }
+  if(fartCloud&&fartCloud.alpha>0){
+    ctx.fillStyle=`rgba(100,255,50,${fartCloud.alpha*0.8})`;
+    ctx.font=`bold ${Math.min(18,W2*0.035)}px Fredoka One,cursive`;
+    ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText(`💨 ${fartCharges} farts left`,W2/2,H2*0.08);
+  }
+
+  // Floor indicator
+  ctx.fillStyle='rgba(0,0,0,0.5)';ctx.fillRect(W2/2-55,H2-32,110,24);
+  ctx.fillStyle='#ffcc44';ctx.font=`bold ${Math.min(12,W2*0.02)}px Fredoka One,cursive`;
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(currentFloor===0?'🏠 Ground Floor':'🏡 Second Floor',W2/2,H2-20);
+}
+
+// Draw Mr. Cupcake from above (top-down)
+function drawCupcake3P(x,y,angle){
+  ctx.save();ctx.translate(x,y);ctx.rotate(angle+Math.PI/2);
+  const s=CAM_ZOOM*0.48;
+  const bob=Math.sin(bobTime*6)*2;
+  ctx.translate(0,bob);
+
+  // Shadow
+  ctx.fillStyle='rgba(0,0,0,0.22)';ctx.beginPath();ctx.ellipse(2,s*0.1,s*0.55,s*0.18,0,0,Math.PI*2);ctx.fill();
+
+  // Wrapper
+  const wg=ctx.createLinearGradient(-s*.5,0,s*.5,s*.7);
+  wg.addColorStop(0,'#8B4513');wg.addColorStop(1,'#4a1a00');
+  ctx.fillStyle=wg;
+  ctx.beginPath();ctx.ellipse(0,s*0.22,s*0.5,s*0.28,0,0,Math.PI*2);ctx.fill();
+  // Wrapper lines
+  ctx.strokeStyle='#6B3410';ctx.lineWidth=0.8;
+  for(let l=-2;l<=2;l++){ctx.beginPath();ctx.moveTo(l*s*.18,s*.0);ctx.lineTo(l*s*.16,s*.48);ctx.stroke();}
+
+  // Frosting (top view — circular)
+  const fg=ctx.createRadialGradient(-s*.08,-s*.08,s*.02,0,0,s*.45);
+  fg.addColorStop(0,'#ffccdd');fg.addColorStop(0.5,'#ff6699');fg.addColorStop(1,'#cc2255');
+  ctx.fillStyle=fg;ctx.beginPath();ctx.arc(0,-s*.05,s*.46,0,Math.PI*2);ctx.fill();
+
+  // Sprinkles on top
+  ctx.fillStyle='#ffff44';ctx.fillRect(-s*.18,-s*.18,s*.1,s*.04);
+  ctx.fillStyle='#44ffcc';ctx.fillRect(s*.08,-s*.22,s*.1,s*.04);
+  ctx.fillStyle='#ff8844';ctx.fillRect(-s*.04,-s*.3,s*.08,s*.04);
+
+  // Face (facing forward = downward in top view)
+  const nearEnemy=Math.hypot(ox-px,oy-py)<3||Math.hypot(kx-px,ky-py)<2.5;
+  ctx.fillStyle='#111';
+  ctx.beginPath();ctx.ellipse(-s*.14,-s*.05,s*.08,s*.09,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(s*.14,-s*.05,s*.08,s*.09,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#fff';
+  ctx.beginPath();ctx.ellipse(-s*.14,-s*.05,s*.055,s*.06,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(s*.14,-s*.05,s*.055,s*.06,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle=nearEnemy?'#cc0000':'#cc4466';
+  ctx.beginPath();ctx.arc(-s*.13,-s*.04,s*.035,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(s*.15,-s*.04,s*.035,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#000';
+  ctx.beginPath();ctx.arc(-s*.13,-s*.04,s*.018,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(s*.15,-s*.04,s*.018,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='#330000';ctx.lineWidth=1.2;
+  if(nearEnemy){
+    ctx.fillStyle='#220000';ctx.beginPath();ctx.ellipse(0,s*.12,s*.06,s*.07,0,0,Math.PI*2);ctx.fill();
+  } else {
+    ctx.beginPath();ctx.arc(0,s*.08,s*.06,0.2,Math.PI-0.2);ctx.stroke();
+    // Rosy cheeks
+    ctx.fillStyle='rgba(255,100,150,0.3)';
+    ctx.beginPath();ctx.ellipse(-s*.24,s*.02,s*.08,s*.05,0,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.ellipse(s*.24,s*.02,s*.08,s*.05,0,0,Math.PI*2);ctx.fill();
+  }
+
+  // Candle on top
+  ctx.fillStyle='#88aa44';ctx.fillRect(-s*.03,-s*.42,s*.05,s*.18);
+  ctx.fillStyle='#ffaa00';ctx.shadowColor='#ff6600';ctx.shadowBlur=5;
+  ctx.beginPath();ctx.arc(0,-s*.44,s*.06,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;
+
+  // Walking legs (tiny, visible from above)
+  const legAnim=Math.sin(bobTime*9)*s*.12;
+  ctx.fillStyle='#cc4488';
+  ctx.beginPath();ctx.ellipse(-s*.12,s*.3+legAnim,s*.09,s*.16,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(s*.12,s*.3-legAnim,s*.09,s*.16,0,0,Math.PI*2);ctx.fill();
+
+  ctx.restore();
+}
+
+// Draw owner/kid from above — rotates to face direction of movement
+function drawOwner3P(x,y,angle,alerted,who){
+  ctx.save();ctx.translate(x,y);ctx.rotate(angle+Math.PI/2);
+  const s=CAM_ZOOM*(who==='kid'?0.36:0.44);
+  const pulse=Math.sin(bobTime*3)*0.1+0.9;
+  // Walk cycle speed — kid is faster
+  const walkSpeed=who==='kid'?10:7;
+  const legSwing=Math.sin(bobTime*walkSpeed)*s*0.22;
+  const armSwing=Math.sin(bobTime*walkSpeed)*s*0.18;
+
+  // Shadow
+  ctx.fillStyle='rgba(0,0,0,0.2)';
+  ctx.beginPath();ctx.ellipse(0,s*0.12,s*0.42,s*0.14,0,0,Math.PI*2);ctx.fill();
+
+  // ── LEGS ────────────────────────────────────────────────────────────
+  const pantCol=who==='kid'?'#4466cc':'#334488';
+  ctx.fillStyle=pantCol;
+  // Left leg
+  ctx.beginPath();ctx.ellipse(-s*0.15,s*0.38+legSwing,s*0.12,s*0.22,0,0,Math.PI*2);ctx.fill();
+  // Right leg
+  ctx.beginPath();ctx.ellipse(s*0.15,s*0.38-legSwing,s*0.12,s*0.22,0,0,Math.PI*2);ctx.fill();
+  // Shoes
+  ctx.fillStyle='#222';
+  ctx.beginPath();ctx.ellipse(-s*0.15,s*0.54+legSwing,s*0.1,s*0.08,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(s*0.15,s*0.54-legSwing,s*0.1,s*0.08,0,0,Math.PI*2);ctx.fill();
+
+  // ── BODY ────────────────────────────────────────────────────────────
+  const bodyCol=alerted
+    ?(who==='kid'?'#cc2244':'#cc4400')
+    :(who==='kid'?'#dd4499':'#4466bb');
+  ctx.fillStyle=bodyCol;
+  ctx.shadowColor=alerted?'#ff2200':'rgba(0,0,0,0)';
+  ctx.shadowBlur=alerted?16*pulse:0;
+  ctx.beginPath();ctx.ellipse(0,s*0.05,s*0.36,s*0.44,0,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;
+
+  // ── ARMS ────────────────────────────────────────────────────────────
+  ctx.strokeStyle=bodyCol;ctx.lineWidth=s*0.16;ctx.lineCap='round';
+  if(alerted){
+    // Arms raised in shock / reaching
+    ctx.beginPath();ctx.moveTo(-s*0.33,s*0.0);ctx.lineTo(-s*0.62,-s*0.28);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(s*0.33,s*0.0);ctx.lineTo(s*0.62,-s*0.28);ctx.stroke();
+    // Hands
+    ctx.fillStyle='#f0c898';
+    ctx.beginPath();ctx.arc(-s*0.64,-s*0.3,s*0.09,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(s*0.64,-s*0.3,s*0.09,0,Math.PI*2);ctx.fill();
+  } else {
+    // Swinging arms while walking
+    ctx.beginPath();ctx.moveTo(-s*0.33,s*0.0);ctx.lineTo(-s*0.58,s*0.12+armSwing);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(s*0.33,s*0.0);ctx.lineTo(s*0.58,s*0.12-armSwing);ctx.stroke();
+    ctx.fillStyle='#f0c898';
+    ctx.beginPath();ctx.arc(-s*0.6,s*0.14+armSwing,s*0.09,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(s*0.6,s*0.14-armSwing,s*0.09,0,Math.PI*2);ctx.fill();
+  }
+
+  // ── HEAD ────────────────────────────────────────────────────────────
+  ctx.fillStyle='#f0c898';
+  ctx.shadowColor=alerted?'#ff2200':'rgba(0,0,0,0.2)';
+  ctx.shadowBlur=alerted?12*pulse:4;
+  ctx.beginPath();ctx.arc(0,-s*0.38,s*0.3,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;
+
+  // Hair
+  ctx.fillStyle=who==='kid'?'#885522':'#553311';
+  ctx.beginPath();ctx.arc(0,-s*0.52,s*0.28,0,Math.PI*2);ctx.fill();
+  if(who==='kid'){
+    // Messy tufts
+    ctx.beginPath();ctx.arc(-s*0.16,-s*0.48,s*0.14,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(s*0.16,-s*0.48,s*0.14,0,Math.PI*2);ctx.fill();
+  }
+
+  // Face — visible from above
+  ctx.fillStyle='#333';
+  if(alerted){
+    // Wide shocked eyes
+    ctx.beginPath();ctx.ellipse(-s*0.1,-s*0.38,s*0.07,s*0.07,0,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.ellipse(s*0.1,-s*0.38,s*0.07,s*0.07,0,0,Math.PI*2);ctx.fill();
+    // Open O mouth
+    ctx.fillStyle='#cc0000';
+    ctx.beginPath();ctx.ellipse(0,-s*0.24,s*0.06,s*0.08,0,0,Math.PI*2);ctx.fill();
+  } else {
+    ctx.beginPath();ctx.ellipse(-s*0.09,-s*0.4,s*0.05,s*0.04,0,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.ellipse(s*0.09,-s*0.4,s*0.05,s*0.04,0,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(0,-s*0.28,s*0.05,0.2,Math.PI-0.2);ctx.strokeStyle='#333';ctx.lineWidth=1;ctx.stroke();
+  }
+
+  // Exclamation bubble when alerted
+  if(alerted){
+    ctx.save();ctx.rotate(-(angle+Math.PI/2)); // keep upright
+    ctx.fillStyle='rgba(255,50,0,0.95)';
+    ctx.shadowColor='#ff0000';ctx.shadowBlur=10;
+    ctx.font=`bold ${s*0.7}px Creepster,cursive`;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('!',0,-s*1.1);
+    ctx.shadowBlur=0;ctx.restore();
+  }
+
+  ctx.restore();
+}
+
+function drawOwnerSprite(screenX,H2,dist,W2){
+  const sH=Math.min(H2*1.9,H2/dist*1.3);
+  const s=sH*0.35;
+  ctx.save();ctx.translate(screenX,H2/2+s*0.2);
+  ctx.globalAlpha=Math.max(0.1,Math.min(1,1-dist*0.04));
+
+  // Shadow
+  ctx.fillStyle='rgba(0,0,0,0.3)';ctx.beginPath();ctx.ellipse(0,s*1.1,s*0.5,s*0.1,0,0,Math.PI*2);ctx.fill();
+
+  // Body - regular person
+  const alerted=ostate==='investigate';
+  ctx.fillStyle=alerted?'#cc4400':'#4466aa';
+  ctx.beginPath();ctx.ellipse(0,s*0.3,s*0.38,s*0.52,0,0,Math.PI*2);ctx.fill();
+  // Arms
+  ctx.strokeStyle=alerted?'#cc4400':'#4466aa';ctx.lineWidth=s*0.16;ctx.lineCap='round';
+  if(alerted){
+    // Arms raised in shock
+    ctx.beginPath();ctx.moveTo(-s*0.35,s*0.1);ctx.lineTo(-s*0.7,-s*0.2);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(s*0.35,s*0.1);ctx.lineTo(s*0.7,-s*0.2);ctx.stroke();
+  } else {
+    ctx.beginPath();ctx.moveTo(-s*0.35,s*0.15);ctx.lineTo(-s*0.6,s*0.5);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(s*0.35,s*0.15);ctx.lineTo(s*0.6,s*0.5);ctx.stroke();
+  }
+  // Legs
+  ctx.strokeStyle='#334488';ctx.lineWidth=s*0.18;
+  ctx.beginPath();ctx.moveTo(-s*0.15,s*0.75);ctx.lineTo(-s*0.2,s*1.1);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(s*0.15,s*0.75);ctx.lineTo(s*0.2,s*1.1);ctx.stroke();
+
+  // Head
+  ctx.shadowColor=alerted?'#ff4400':'rgba(0,0,0,0.3)';ctx.shadowBlur=alerted?20:5;
+  ctx.fillStyle='#f0c898';
+  ctx.beginPath();ctx.arc(0,-s*0.22,s*0.34,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;
+  // Hair
+  ctx.fillStyle='#553311';
+  ctx.beginPath();ctx.ellipse(0,-s*0.5,s*0.34,s*0.15,0,0,Math.PI*2);ctx.fill();
+
+  // Face
+  ctx.fillStyle='#333';
+  if(alerted){
+    // Shocked O face
+    ctx.beginPath();ctx.ellipse(-s*0.12,-s*0.26,s*0.07,s*0.06,0,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.ellipse(s*0.12,-s*0.26,s*0.07,s*0.06,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#cc0000';
+    ctx.beginPath();ctx.ellipse(0,-s*0.1,s*0.08,s*0.1,0,0,Math.PI*2);ctx.fill();
+    // Exclamation marks
+    ctx.fillStyle='rgba(255,50,0,0.9)';
+    ctx.font=`bold ${s*0.3}px Creepster,cursive`;ctx.textAlign='center';
+    ctx.fillText('!!!',s*0.7,-s*0.5);
+  } else {
+    ctx.beginPath();ctx.ellipse(-s*0.1,-s*0.24,s*0.055,s*0.04,0,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.ellipse(s*0.1,-s*0.24,s*0.055,s*0.04,0,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(0,-s*0.11,s*0.055,0,Math.PI);ctx.stroke();
+  }
+
+  // Name tag
+  if(dist<3){
+    ctx.fillStyle='rgba(0,0,0,0.65)';ctx.fillRect(-s*0.5,s*0.85,s,s*0.3);
+    ctx.fillStyle=alerted?'#ff8844':'#ffffff';
+    ctx.font=`bold ${Math.max(7,s*0.18)}px Fredoka One,cursive`;
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(alerted?'😱 SPOTTED!':'👤 Owner',0,s*1.0);
+  }
+
+  ctx.globalAlpha=1;ctx.restore();
+}
+
+function drawOwnerFace(c,cx,cy,s){
+  c.save();c.translate(cx,cy);
+  c.fillStyle='#f0c898';c.beginPath();c.arc(0,0,s*.5,0,Math.PI*2);c.fill();
+  c.fillStyle='#553311';c.beginPath();c.ellipse(0,-s*.42,s*.5,s*.18,0,0,Math.PI*2);c.fill();
+  c.fillStyle='#333';
+  c.beginPath();c.ellipse(-s*.18,-s*.12,s*.1,s*.08,0,0,Math.PI*2);c.fill();
+  c.beginPath();c.ellipse(s*.18,-s*.12,s*.1,s*.08,0,0,Math.PI*2);c.fill();
+  c.fillStyle='#cc0000';c.beginPath();c.ellipse(0,s*.1,s*.14,s*.18,0,0,Math.PI*2);c.fill();
+  c.fillStyle='rgba(255,200,0,0.9)';c.font=`bold ${s*.4}px Creepster,cursive`;c.textAlign='center';c.textBaseline='middle';
+  c.fillText('😱',s*.7,-s*.5);c.fillText('😱',-s*.7,-s*.5);
+  c.restore();
+}
+
+function drawCupcakeHUD(){
+  const s=Math.min(50,H*0.085);
+  const bob=Math.sin(bobTime*5)*1.5;
+  ctx.save();ctx.translate(W/2,H+bob);
+  const wg=ctx.createLinearGradient(-s*.5,0,s*.5,s*.65);
+  wg.addColorStop(0,'#8B4513');wg.addColorStop(1,'#4a1a00');
+  ctx.fillStyle=wg;ctx.beginPath();ctx.moveTo(-s*.5,-s*.05);ctx.lineTo(-s*.38,s*.65);ctx.lineTo(s*.38,s*.65);ctx.lineTo(s*.5,-s*.05);ctx.closePath();ctx.fill();
+  ctx.strokeStyle='#6B3410';ctx.lineWidth=0.8;for(let l=-2;l<=2;l++){ctx.beginPath();ctx.moveTo(l*s*.11,-s*.05);ctx.lineTo(l*s*.08,s*.65);ctx.stroke();}
+  const fg=ctx.createRadialGradient(-s*.1,-s*.2,s*.03,0,-s*.1,s*.5);
+  fg.addColorStop(0,'#ffaabb');fg.addColorStop(.5,'#ff6699');fg.addColorStop(1,'#cc2255');
+  ctx.fillStyle=fg;ctx.beginPath();ctx.arc(0,-s*.05,s*.5,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#ffff44';ctx.fillRect(-s*.14,-s*.28,s*.07,s*.025);
+  ctx.fillStyle='#44ffcc';ctx.fillRect(s*.06,-s*.32,s*.07,s*.025);
+  ctx.fillStyle='#ff8844';ctx.fillRect(-s*.04,-s*.42,s*.06,s*.025);
+  const nearOwner=Math.hypot(ox-px,oy-py)<3||Math.hypot(kx-px,ky-py)<2.5;
+  const expr=nearOwner?'scared':'happy';
+  ctx.fillStyle='#111';
+  ctx.beginPath();ctx.ellipse(-s*.18,-s*.14,s*.12,s*.14,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(s*.18,-s*.14,s*.12,s*.14,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#fff';
+  ctx.beginPath();ctx.ellipse(-s*.18,-s*.14,s*.08,s*.09,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(s*.18,-s*.14,s*.08,s*.09,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle=expr==='scared'?'#cc0000':'#cc6600';
+  ctx.beginPath();ctx.arc(-s*.17,-s*.13,s*.05,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(s*.19,-s*.13,s*.05,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#000';ctx.beginPath();ctx.arc(-s*.17,-s*.13,s*.027,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(s*.19,-s*.13,s*.027,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='#330000';ctx.lineWidth=1.4;
+  if(expr==='scared'){
+    ctx.fillStyle='#220000';ctx.beginPath();ctx.ellipse(0,s*.06,s*.07,s*.09,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#aaddff';ctx.beginPath();ctx.arc(s*.32,-s*.22,s*.03,0,Math.PI*2);ctx.fill();
+  } else {
+    ctx.beginPath();ctx.arc(0,s*.04,s*.09,0.1,Math.PI-0.1);ctx.stroke();
+    ctx.fillStyle='rgba(255,100,150,0.3)';
+    ctx.beginPath();ctx.ellipse(-s*.28,s*.02,s*.1,s*.06,0,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.ellipse(s*.28,s*.02,s*.1,s*.06,0,0,Math.PI*2);ctx.fill();
+  }
+  ctx.fillStyle='#88aa44';ctx.fillRect(-s*.03,-s*.72,s*.05,s*.25);
+  ctx.fillStyle='#ffaa00';ctx.shadowColor='#ff6600';ctx.shadowBlur=5;
+  ctx.beginPath();ctx.moveTo(0,-s*.8);ctx.quadraticCurveTo(s*.05,-s*.73,0,-s*.65);ctx.quadraticCurveTo(-s*.05,-s*.73,0,-s*.8);ctx.fill();
+  ctx.shadowBlur=0;ctx.restore();
+}
+
+function drawKidSprite(screenX,H2,dist,W2){
+  const sH=Math.min(H2*1.4,H2/dist*0.9); // kid is shorter
+  const s=sH*0.28;
+  ctx.save();ctx.translate(screenX,H2/2+s*0.5);
+  ctx.globalAlpha=Math.max(0.1,Math.min(1,1-dist*0.04));
+  const alerted=kstate==='investigate';
+
+  // Shadow
+  ctx.fillStyle='rgba(0,0,0,0.25)';ctx.beginPath();ctx.ellipse(0,s*1.0,s*0.4,s*0.08,0,0,Math.PI*2);ctx.fill();
+
+  // Body — smaller, colorful t-shirt
+  ctx.fillStyle=alerted?'#cc4400':'#cc4488'; // pink shirt
+  ctx.beginPath();ctx.ellipse(0,s*0.2,s*0.3,s*0.42,0,0,Math.PI*2);ctx.fill();
+  // Arms
+  ctx.strokeStyle=alerted?'#cc4400':'#cc4488';ctx.lineWidth=s*0.14;ctx.lineCap='round';
+  if(alerted){
+    ctx.beginPath();ctx.moveTo(-s*0.28,s*0.05);ctx.lineTo(-s*0.6,-s*0.18);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(s*0.28,s*0.05);ctx.lineTo(s*0.6,-s*0.18);ctx.stroke();
+  } else {
+    ctx.beginPath();ctx.moveTo(-s*0.28,s*0.1);ctx.lineTo(-s*0.52,s*0.45);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(s*0.28,s*0.1);ctx.lineTo(s*0.52,s*0.45);ctx.stroke();
+  }
+  // Legs — shorts
+  ctx.strokeStyle='#4466cc';ctx.lineWidth=s*0.16;
+  ctx.beginPath();ctx.moveTo(-s*0.12,s*0.58);ctx.lineTo(-s*0.16,s*0.9);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(s*0.12,s*0.58);ctx.lineTo(s*0.16,s*0.9);ctx.stroke();
+
+  // Head — smaller, rounder
+  ctx.shadowColor=alerted?'#ff4400':'rgba(0,0,0,0.2)';ctx.shadowBlur=alerted?16:3;
+  ctx.fillStyle='#f5c898';
+  ctx.beginPath();ctx.arc(0,-s*0.18,s*0.28,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;
+  // Hair — messy kids hair
+  ctx.fillStyle='#885522';
+  ctx.beginPath();ctx.arc(0,-s*0.38,s*0.28,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#885522';
+  ctx.beginPath();ctx.arc(-s*0.2,-s*0.2,s*0.14,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(s*0.2,-s*0.2,s*0.14,0,Math.PI*2);ctx.fill();
+
+  // Face
+  ctx.fillStyle='#333';
+  if(alerted){
+    // Shocked wide eyes
+    ctx.beginPath();ctx.ellipse(-s*0.1,-s*0.22,s*0.07,s*0.07,0,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.ellipse(s*0.1,-s*0.22,s*0.07,s*0.07,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#cc0000';
+    ctx.beginPath();ctx.ellipse(0,-s*0.07,s*0.07,s*0.08,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(255,100,0,0.9)';
+    ctx.font=`bold ${s*0.35}px Creepster,cursive`;ctx.textAlign='center';
+    ctx.fillText('!!!',s*0.6,-s*0.4);
+  } else {
+    ctx.beginPath();ctx.ellipse(-s*0.08,-s*0.22,s*0.05,s*0.04,0,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.ellipse(s*0.08,-s*0.22,s*0.05,s*0.04,0,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(0,-s*0.09,s*0.05,0,Math.PI);ctx.strokeStyle='#333';ctx.lineWidth=1;ctx.stroke();
+  }
+
+  if(dist<3){
+    ctx.fillStyle='rgba(0,0,0,0.65)';ctx.fillRect(-s*0.5,s*0.72,s,s*0.3);
+    ctx.fillStyle=alerted?'#ff8844':'#ffccdd';
+    ctx.font=`bold ${Math.max(7,s*0.18)}px Fredoka One,cursive`;
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(alerted?'😱 KID!':'👦 Kid',0,s*0.87);
+  }
+  ctx.globalAlpha=1;ctx.restore();
+}
+
+// ── MINIMAP ───────────────────────────────────────────────────────────────
+function drawMinimap(){
+  const mW=mmEl.width,mH=mmEl.height,tW=mW/COLS,tH=mH/ROWS;
+  mCtx.fillStyle='#f0ebe0';mCtx.fillRect(0,0,mW,mH);
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    if(map[r][c]===1){mCtx.fillStyle='#8a7a6a';mCtx.fillRect(c*tW,r*tH,tW,tH);}
+  }
+  // Uneaten items
+  for(const e of EATABLES)if(!e.eaten&&e.floor===currentFloor){mCtx.fillStyle='#ffcc44';mCtx.fillRect(e.x*tW-1.5,e.y*tH-1.5,3,3);}
+  // Staircase on minimap
+  const stTile2=currentFloor===0?STAIR_DOWN:STAIR_UP;
+  mCtx.fillStyle='#ffcc44';mCtx.font='8px serif';mCtx.textAlign='center';mCtx.textBaseline='middle';
+  mCtx.fillText('🪜',(stTile2.x+0.5)*tW,(stTile2.y+0.5)*tH);
+  // Kid
+  mCtx.fillStyle=kstate==='investigate'?'#ff2200':'#cc4488';
+  mCtx.beginPath();mCtx.arc(kx*tW,ky*tH,2.5,0,Math.PI*2);mCtx.fill();
+  // Owner
+  mCtx.fillStyle=ostate==='investigate'?'#ff4400':'#4466aa';
+  mCtx.beginPath();mCtx.arc(ox*tW,oy*tH,3.5,0,Math.PI*2);mCtx.fill();
+  // Player
+  mCtx.fillStyle='#ff88cc';mCtx.beginPath();mCtx.arc(px*tW,py*tH,3,0,Math.PI*2);mCtx.fill();
+  mCtx.strokeStyle='rgba(255,136,204,0.35)';mCtx.lineWidth=0.8;
+  for(const a of[pAngle-FOV/2,pAngle+FOV/2]){mCtx.beginPath();mCtx.moveTo(px*tW,py*tH);mCtx.lineTo((px+Math.cos(a)*5)*tW,(py+Math.sin(a)*5)*tH);mCtx.stroke();}
+}
+
+// ── CUTSCENES ─────────────────────────────────────────────────────────────
+function showCutscene(scenes,onDone){
+  let idx=0;
+  const cs=document.getElementById('cutscene');
+  cs.style.display='flex';
+  function showScene(){
+    if(idx>=scenes.length){cs.style.display='none';onDone();return;}
+    const s=scenes[idx];
+    cs.innerHTML=`
+      <h2>${s.title}</h2>
+      <canvas id="cs-canvas" width="280" height="180" style="border-radius:12px;"></canvas>
+      <p>${s.text}</p>
+      <button class="next-btn">${idx<scenes.length-1?'▶ Next':'▶ Let\'s go!'}</button>`;
+    cs.querySelector('.next-btn').addEventListener('click',()=>{idx++;showScene();});
+    const cc=document.getElementById('cs-canvas');
+    s.draw(cc.getContext('2d'),280,180);
+  }
+  showScene();
+}
+
+function drawShopScene(c,W2,H2){
+  // Bakery window scene
+  const bg=c.createLinearGradient(0,0,0,H2);
+  bg.addColorStop(0,'#87CEEB');bg.addColorStop(0.6,'#b0d4f0');bg.addColorStop(1,'#e8d8c0');
+  c.fillStyle=bg;c.fillRect(0,0,W2,H2);
+  // Shop
+  c.fillStyle='#d4a870';c.fillRect(40,60,200,110);
+  c.fillStyle='#8B6340';c.fillRect(40,55,200,10);
+  c.fillStyle='#4488cc';c.fillRect(60,70,160,60);
+  c.fillStyle='rgba(200,230,255,0.4)';c.fillRect(60,70,160,60);
+  // Sign
+  c.fillStyle='#cc4422';c.fillRect(80,30,120,28);
+  c.fillStyle='#fff';c.font='bold 12px Fredoka One,cursive';c.textAlign='center';
+  c.fillText('🧁 BAKERY',140,49);
+  // Cupcake in window
+  c.font='36px serif';c.textAlign='center';c.textBaseline='middle';
+  c.fillText('🧁',140,100);
+  // Eyes blinking
+  c.fillStyle='#111';c.beginPath();c.arc(130,93,3,0,Math.PI*2);c.fill();
+  c.beginPath();c.arc(150,93,3,0,Math.PI*2);c.fill();
+  // Street
+  c.fillStyle='#888';c.fillRect(0,H2-40,W2,40);
+  c.fillStyle='#fff';for(let x=20;x<W2;x+=40){c.fillRect(x,H2-22,20,6);}
+}
+
+function drawBuyScene(c,W2,H2){
+  c.fillStyle='#d4a870';c.fillRect(0,0,W2,H2);
+  c.fillStyle='#4488cc';c.fillRect(20,30,W2-40,100);
+  c.fillStyle='rgba(200,230,255,0.3)';c.fillRect(20,30,W2-40,100);
+  // Customer person
+  c.fillStyle='#f0c898';c.beginPath();c.arc(70,80,28,0,Math.PI*2);c.fill();
+  c.fillStyle='#553311';c.beginPath();c.ellipse(70,56,28,12,0,0,Math.PI*2);c.fill();
+  c.fillStyle='#cc6644';c.beginPath();c.ellipse(70,105,22,30,0,0,Math.PI*2);c.fill();
+  // Arm reaching
+  c.strokeStyle='#cc6644';c.lineWidth=10;c.lineCap='round';
+  c.beginPath();c.moveTo(82,95);c.lineTo(130,115);c.stroke();
+  // Hand
+  c.fillStyle='#f0c898';c.beginPath();c.arc(135,118,10,0,Math.PI*2);c.fill();
+  // Cupcake being handed over
+  c.font='32px serif';c.textAlign='center';c.textBaseline='middle';c.fillText('🧁',160,115);
+  // Evil eyes on cupcake
+  c.fillStyle='#ff0000';c.beginPath();c.arc(153,108,3,0,Math.PI*2);c.fill();
+  c.beginPath();c.arc(167,108,3,0,Math.PI*2);c.fill();
+  // Speech bubble
+  c.fillStyle='#fff';c.beginPath();c.roundRect(160,30,100,45,8);c.fill();
+  c.fillStyle='#333';c.font='11px Fredoka One,cursive';c.textAlign='center';
+  c.fillText('Oh what a',210,48);c.fillText('lovely cupcake!',210,64);
+  // Evil thought bubble from cupcake
+  c.fillStyle='rgba(255,200,200,0.9)';c.beginPath();c.roundRect(10,30,110,40,8);c.fill();
+  c.fillStyle='#cc0000';c.font='10px Fredoka One,cursive';c.textAlign='center';
+  c.fillText('Hehe... now I\'ll',55,47);c.fillText('eat EVERYTHING!',55,62);
+}
+
+function drawHouseScene(c,W2,H2){
+  // House interior teaser
+  c.fillStyle='#f5f0e8';c.fillRect(0,0,W2,H2);
+  // Floor
+  c.fillStyle='#8b6c52';c.fillRect(0,H2-50,W2,50);
+  // Furniture
+  const items=['🛋️','📺','🍕','🛏️','💻','🚽'];
+  items.forEach((emoji,i)=>{
+    c.font='28px serif';c.textAlign='center';c.textBaseline='bottom';
+    c.fillText(emoji,30+i*42,H2-55);
+  });
+  // Cupcake sneaking
+  c.font='26px serif';c.textAlign='center';c.textBaseline='bottom';
+  c.fillText('🧁',140,H2-52);
+  // Evil eyes
+  c.fillStyle='#ff0000';c.beginPath();c.arc(133,H2-78,3,0,Math.PI*2);c.fill();
+  c.beginPath();c.arc(147,H2-78,3,0,Math.PI*2);c.fill();
+  // Staircase on minimap
+  const stTile2=currentFloor===0?STAIR_DOWN:STAIR_UP;
+  mCtx.fillStyle='#ffcc44';mCtx.font='8px serif';mCtx.textAlign='center';mCtx.textBaseline='middle';
+  mCtx.fillText('🪜',(stTile2.x+0.5)*tW,(stTile2.y+0.5)*tH);
+  // Owner not looking
+  c.font='22px serif';c.textBaseline='bottom';
+  c.fillText('🚶',230,H2-52);
+  // Text
+  c.fillStyle='#333';c.font='bold 13px Fredoka One,cursive';c.textAlign='center';
+  c.fillText('Eat everything while',140,30);c.fillText('they\'re not looking!',140,50);
+  c.fillStyle='#ff4400';c.font='bold 11px Fredoka One,cursive';
+  c.fillText('21 things to eat 😋',140,70);
+}
+
+// ── UI ────────────────────────────────────────────────────────────────────
+function updateUI(){
+  document.getElementById('score-txt').textContent='🍬 '+Math.floor(score);
+  const floorEatables=EATABLES.filter(e=>!e.eaten);
+  document.getElementById('phase-txt').textContent=(currentFloor===0?'🏠 Floor 1':'🏡 Floor 2')+' · 😋 '+(EATABLES.length-floorEatables.length)+'/'+EATABLES.length;
+  document.getElementById('eaten-txt').textContent='❤️'.repeat(Math.max(0,lives));
+}
+function showMsg(t){const el=document.getElementById('msg');el.textContent=t;el.style.opacity='1';clearTimeout(msgTimer);msgTimer=setTimeout(()=>el.style.opacity='0',2400);}
+
+function endGame(win){
+  const ov=document.getElementById('overlay');
+  HS.showGameOver({
+    key:'haunted_cupcake', score:Math.floor(score), overlayEl:ov,
+    title: win ? '🧁 YOU ATE EVERYTHING!' : '😱 THEY FIGURED IT OUT!',
+    subtitle: win ? 'The whole house devoured! Even the toilet 🚽!' : `You ate ${eatenCount} / ${EATABLES.length} things · Sneak better!`,
+    btnLabel: win ? '▶ EAT AGAIN!' : '▶ TRY AGAIN',
+    onRestart:()=>{
+      ea(); startGame();
+      showCutscene([
+        {title:'🧁 The Bakery',text:'You sit in the bakery window... looking innocent... waiting...',draw:drawShopScene},
+        {title:'💰 Someone Buys You!',text:'"What a lovely cupcake!" says the customer. Little do they know...',draw:drawBuyScene},
+        {title:'🏠 You\'re Inside!',text:'Now you\'re in their house. Time to EAT EVERYTHING! Don\'t get caught!',draw:drawHouseScene},
+      ],()=>{running=true;});
+    },
+    hiColor:'#ff88cc',
+    titleStyle:"font-family:'Creepster',cursive;font-size:clamp(1.8rem,6vw,3rem);color:#ff88cc;text-shadow:0 0 30px #cc0088;letter-spacing:2px;text-align:center;margin-bottom:8px",
+    btnClass:'btn'
+  });
+}
+
+function loop(now){
+  const dt=Math.min((now-lastTime)/1000,0.05);lastTime=now;
+  try{update(dt);drawScene();drawMinimap();}catch(e){console.error(e);}
+  requestAnimationFrame(loop);
+}
+
+document.getElementById('startBtn').addEventListener('click',()=>{
+  ea();document.getElementById('overlay').style.display='none';
+  startGame();
+  showCutscene([
+    {title:'🧁 The Bakery',text:'You sit in the bakery window... looking innocent... waiting for someone to buy you...',draw:drawShopScene},
+    {title:'💰 Someone Buys You!',text:'"Oh what a lovely cupcake!" says the customer. Little do they know you\'re HAUNTED...',draw:drawBuyScene},
+    {title:'🏠 You\'re Inside the House!',text:'Now you\'re inside. Eat EVERYTHING while the owner isn\'t looking! 21 things to devour!',draw:drawHouseScene},
+  ],()=>{running=true;});
+});
+requestAnimationFrame(t=>{lastTime=t;requestAnimationFrame(loop);});
+</script>
+</body>
+</html>
