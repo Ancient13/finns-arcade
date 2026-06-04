@@ -1,5 +1,5 @@
 // Finn's Arcade Service Worker
-const CACHE = 'finns-arcade-v5';
+const CACHE = 'finns-arcade-v6';
 const BASE = '/finns-arcade/';
 const ASSETS = [
   BASE,
@@ -13,6 +13,7 @@ const ASSETS = [
   BASE + 'mr-cupcake-3d.html',
   BASE + 'nightmare-shooter.html',
   BASE + 'puppet-shooter.html',
+  BASE + 'puppet-box.html',
   BASE + 'fnaf-block-shooter.html',
   BASE + 'freddy-space.html',
   BASE + 'fnaf4-3d.html',

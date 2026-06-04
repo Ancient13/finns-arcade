@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Puppet in a Box!</title>
+<script src="leaderboard.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Creepster&family=Orbitron:wght@700;900&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:#000;overflow:hidden;touch-action:none;user-select:none;font-family:'Orbitron',monospace;}
+  canvas{display:block;}
+
+  #ui{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:7px 14px;z-index:10;pointer-events:none;background:linear-gradient(180deg,rgba(0,0,0,0.9),transparent);}
+  .pill{background:rgba(0,0,0,0.75);border-radius:20px;padding:4px 13px;font-size:0.78rem;}
+  #score-txt{color:#cc44ff;border:1.5px solid #cc44ff44;}
+  #night-txt{color:#ff4444;border:1.5px solid #ff444444;font-size:0.68rem;}
+  #lives-txt{color:#ffaaff;border:1.5px solid #ffaaff44;}
+
+  /* Breath bar */
+  #breath-wrap{position:fixed;top:46px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:2px;pointer-events:none;z-index:10;}
+  #breath-label{color:#cc44ff;font-size:0.52rem;letter-spacing:2px;}
+  #breath-bg{width:160px;height:8px;background:rgba(200,100,255,0.1);border-radius:4px;border:1px solid #cc44ff33;overflow:hidden;}
+  #breath-bar{height:100%;border-radius:4px;background:linear-gradient(90deg,#440088,#cc44ff);transition:width 0.15s;}
+
+  /* Clock */
+  #clock-txt{position:fixed;top:68px;left:50%;transform:translateX(-50%);font-size:1rem;color:#aaddff;text-shadow:0 0 8px #4488ff;pointer-events:none;z-index:10;}
+
+  /* Night bar */
+  #night-bar-wrap{position:fixed;bottom:4px;left:50%;transform:translateX(-50%);width:55%;pointer-events:none;z-index:10;}
+  #night-bar-bg{height:5px;background:rgba(255,255,255,0.07);border-radius:3px;overflow:hidden;}
+  #night-bar{height:100%;background:linear-gradient(90deg,#440088,#cc44ff);border-radius:3px;}
+
+  /* Peek button */
+  #peek-btn{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);width:100px;height:70px;border-radius:14px;
+    background:rgba(0,0,0,0.7);border:2px solid #cc44ff;color:#cc44ff;
+    display:flex;align-items:center;justify-content:center;flex-direction:column;
+    z-index:15;cursor:pointer;pointer-events:all;-webkit-tap-highlight-color:transparent;
+    font-family:'Orbitron',monospace;font-size:0.55rem;gap:3px;letter-spacing:1px;}
+  #peek-btn.peeking{background:rgba(100,0,150,0.4);border-color:#ff44ff;box-shadow:0 0 16px #cc44ff66;}
+
+  /* Hold still button */
+  #still-btn{position:fixed;bottom:24px;right:16px;width:80px;height:70px;border-radius:14px;
+    background:rgba(0,0,0,0.7);border:2px solid #4455ff;color:#4455ff;
+    display:flex;align-items:center;justify-content:center;flex-direction:column;
+    z-index:15;cursor:pointer;pointer-events:all;-webkit-tap-highlight-color:transparent;
+    font-family:'Orbitron',monospace;font-size:0.5rem;gap:3px;letter-spacing:1px;}
+  #still-btn.holding{background:rgba(0,20,100,0.4);border-color:#8899ff;box-shadow:0 0 12px #4455ff66;}
+
+  /* Music box button */  
+  #music-btn{position:fixed;bottom:24px;left:16px;width:80px;height:70px;border-radius:14px;
+    background:rgba(0,0,0,0.7);border:2px solid #ffaa00;color:#ffaa00;
+    display:flex;align-items:center;justify-content:center;flex-direction:column;
+    z-index:15;cursor:pointer;pointer-events:all;-webkit-tap-highlight-color:transparent;
+    font-family:'Orbitron',monospace;font-size:0.5rem;gap:3px;letter-spacing:1px;}
+  #music-btn.playing{background:rgba(80,40,0,0.5);border-color:#ffdd44;box-shadow:0 0 12px #ffaa0066;}
+
+  /* Music bar */
+  #music-wrap{position:fixed;bottom:100px;left:16px;width:80px;pointer-events:none;z-index:10;}
+  #music-bg{height:6px;background:rgba(255,170,0,0.1);border-radius:3px;border:1px solid #ffaa0033;overflow:hidden;}
+  #music-bar{height:100%;border-radius:3px;background:linear-gradient(90deg,#884400,#ffaa00);}
+
+  #msg{position:fixed;top:38%;left:50%;transform:translate(-50%,-50%);font-family:'Creepster',cursive;font-size:1.7rem;color:#cc44ff;text-shadow:0 0 20px #8800cc;white-space:pre-line;pointer-events:none;opacity:0;transition:opacity 0.3s;z-index:20;text-align:center;background:rgba(0,0,0,0.7);padding:10px 22px;border-radius:12px;}
+  #jumpscare{position:fixed;inset:0;z-index:50;display:none;background:#000;align-items:center;justify-content:center;}
+  #overlay{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,5,0.96);}
+  #overlay h1{font-family:'Creepster',cursive;font-size:clamp(1.8rem,6vw,3rem);color:#cc44ff;text-shadow:0 0 30px #8800cc;letter-spacing:2px;text-align:center;margin-bottom:8px;}
+  #overlay p{color:#666;font-size:0.85rem;margin:3px 0;text-align:center;}
+  .btn{margin-top:20px;padding:12px 40px;font-family:'Creepster',cursive;font-size:1.6rem;letter-spacing:2px;color:#cc44ff;border:2px solid #cc44ff;background:transparent;border-radius:4px;cursor:pointer;box-shadow:0 0 20px #cc44ff33;}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="ui">
+  <div class="pill" id="score-txt">🎁 0</div>
+  <div class="pill" id="night-txt">NIGHT 1</div>
+  <div class="pill" id="lives-txt">🎭🎭🎭</div>
+</div>
+<div id="breath-wrap">
+  <div id="breath-label">😮‍💨 HOLD BREATH</div>
+  <div id="breath-bg"><div id="breath-bar" style="width:100%"></div></div>
+</div>
+<div id="clock-txt">12:00 AM</div>
+<div id="night-bar-wrap"><div id="night-bar-bg"><div id="night-bar" style="width:0%"></div></div></div>
+
+<div id="music-wrap">
+  <div id="music-bg"><div id="music-bar" style="width:100%"></div></div>
+</div>
+
+<div id="music-btn" id="music-btn">
+  <span style="font-size:1.5rem">🎵</span>
+  <span id="music-label">MUSIC BOX</span>
+</div>
+<div id="peek-btn">
+  <span style="font-size:1.5rem">👁️</span>
+  <span id="peek-label">PEEPHOLE</span>
+</div>
+<div id="still-btn">
+  <span style="font-size:1.5rem">🤫</span>
+  <span>HOLD STILL</span>
+</div>
+
+<div id="msg"></div>
+<div id="jumpscare"></div>
+
+<div id="overlay">
+  <h1>🎁 PUPPET IN A BOX</h1>
+  <p style="color:#cc88ff;font-size:0.95rem;margin-bottom:4px;">You are The Puppet — hiding in your music box!</p>
+  <p style="color:#ffaaff;">Nightmarionne is stalking the room...</p>
+  <p style="color:#ffaa00;font-weight:900;margin-top:5px;">🎵 Keep the music box wound or she'll find you!</p>
+  <p style="color:#4455ff;margin-top:4px;">👁️ Use the peephole in the wall to spy on her!</p>
+  <p style="color:#ff4444;font-weight:900;">⚠️ If she's close — HOLD STILL and don't breathe!</p>
+  <p style="color:#444;margin-top:8px;font-size:0.78rem;">
+    🎵 = wind music box · 👁️ = peek · 🤫 = hold still<br>
+    Survive from 12 AM to 6 AM!
+  </p>
+  <button class="btn" id="startBtn">▶ GET IN THE BOX</button>
+</div>
+
+<script>
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+let W,H;
+function resize(){W=window.innerWidth;H=window.innerHeight;canvas.width=W;canvas.height=H;}
+resize();window.addEventListener('resize',resize);
+
+// ── AUDIO ──────────────────────────────────────────────────────────────────
+let ac=null;
+function ea(){if(!ac)ac=new(window.AudioContext||window.webkitAudioContext)();if(ac.state==='suspended')ac.resume();}
+function beep(f,t,d,v=0.2,s=null){try{ea();const o=ac.createOscillator(),g=ac.createGain();o.type=t;o.frequency.setValueAtTime(f,ac.currentTime);if(s)o.frequency.exponentialRampToValueAtTime(s,ac.currentTime+d);g.gain.setValueAtTime(v,ac.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+d);o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+d+0.01);}catch(e){}}
+
+// Music box tune (simple lullaby notes)
+const TUNE=[262,294,330,349,392,349,330,294];
+let tuneIdx=0,tuneTimer=0;
+function playMusicNote(){
+  try{ea();const f=TUNE[tuneIdx%TUNE.length];tuneIdx++;
+    const o=ac.createOscillator(),g=ac.createGain();
+    o.type='sine';o.frequency.value=f;
+    g.gain.setValueAtTime(0.18,ac.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.4);
+    o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+0.45);
+  }catch(e){}
+}
+function playScream(){try{ea();const o=ac.createOscillator(),g=ac.createGain();o.type='sawtooth';o.frequency.setValueAtTime(120,ac.currentTime);o.frequency.exponentialRampToValueAtTime(40,ac.currentTime+1.5);g.gain.setValueAtTime(0.7,ac.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+2);o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+2.1);}catch(e){}}
+function playNear(){beep(60,'sawtooth',0.4,0.3,30);}
+function playSurvive(){[523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,'sine',0.18,0.3),i*80));}
+function playCreak(){beep(80,'square',0.3,0.2,120);}
+
+// ── STATE ──────────────────────────────────────────────────────────────────
+const NIGHT_DURATION=360;
+let score=0,lives=3,night=1,running=false;
+let bobTime=0;
+let nightTime=0,msgTimer=null;
+
+// The box / Puppet state
+let peeking=false,       // player is peeking out
+    holdingStill=false,  // player holding still
+    breath=1.0,          // 0=no breath 1=full
+    breathDrain=false;   // currently draining breath
+let musicBox=1.0;        // 0=silent 1=wound up
+let windingMusic=false;
+
+// Nightmarionne
+let mX=0,mY=0;          // world position (0-1 range)
+let mAngle=0;
+let mState='wander';    // wander | approach | retreat | atBox
+let mStateTimer=0;
+let mSpeed=0;
+let mHeard=false;       // heard the puppet (breath/movement)
+let nearTimer=0;        // how long she's been near
+let nearSoundTimer=0;
+
+// Room - 5 positions Nightmarionne can be at (seen through peek)
+// Left far, left close, centre far, right close, right far
+const POSITIONS=[
+  {name:'LEFT HALL',    x:0.08, danger:0.1},
+  {name:'LEFT SIDE',    x:0.28, danger:0.35},
+  {name:'CENTRE',       x:0.5,  danger:0.7},
+  {name:'RIGHT SIDE',   x:0.72, danger:0.35},
+  {name:'RIGHT HALL',   x:0.92, danger:0.1},
+];
+let mPos=0; // current position index
+let mPosTimer=0; // time until she moves to next position
+
+function startNight(n){
+  night=n; nightTime=0;
+  breath=1.0; musicBox=1.0;
+  peeking=false; holdingStill=false;
+  windingMusic=false;
+  mPos=0; mPosTimer=8+Math.random()*6;
+  mState='wander'; mStateTimer=0;
+  mSpeed=0.06+n*0.018;
+  nearTimer=0; nearSoundTimer=0;
+  tuneIdx=0; tuneTimer=0;
+  updateUI();
+}
+
+// ── CONTROLS ──────────────────────────────────────────────────────────────
+const keys={};
+window.addEventListener('keydown',e=>{keys[e.key]=true;e.preventDefault();});
+window.addEventListener('keyup',  e=>keys[e.key]=false);
+
+// Peek button
+let peekHeld=false;
+const peekBtn=document.getElementById('peek-btn');
+peekBtn.addEventListener('mousedown', ()=>{ea();peekHeld=true;});
+peekBtn.addEventListener('mouseup',   ()=>peekHeld=false);
+peekBtn.addEventListener('touchstart',e=>{e.preventDefault();ea();peekHeld=true;});
+peekBtn.addEventListener('touchend',  e=>{e.preventDefault();peekHeld=false;});
+function togglePeek(){} // handled by hold
+
+// Hold still button
+const stillBtn=document.getElementById('still-btn');
+let stillHeld=false;
+stillBtn.addEventListener('mousedown', ()=>{ea();stillHeld=true;});
+stillBtn.addEventListener('mouseup',   ()=>stillHeld=false);
+stillBtn.addEventListener('touchstart',e=>{e.preventDefault();ea();stillHeld=true;});
+stillBtn.addEventListener('touchend',  e=>{e.preventDefault();stillHeld=false;});
+
+// Music box button
+const musicBtnEl=document.getElementById('music-btn');
+let musicHeld=false;
+musicBtnEl.addEventListener('mousedown', ()=>{ea();musicHeld=true;});
+musicBtnEl.addEventListener('mouseup',   ()=>musicHeld=false);
+musicBtnEl.addEventListener('touchstart',e=>{e.preventDefault();ea();musicHeld=true;});
+musicBtnEl.addEventListener('touchend',  e=>{e.preventDefault();musicHeld=false;});
+
+// Keyboard: P=peek, S=still, M=music
+window.addEventListener('keydown',e=>{
+  if(e.key==='p'||e.key==='P') peekHeld=true;
+  if(e.key==='s'||e.key==='S') stillHeld=true;
+  if(e.key==='m'||e.key==='M') musicHeld=true;
+});
+window.addEventListener('keyup',e=>{
+  if(e.key==='p'||e.key==='P') peekHeld=false;
+  if(e.key==='s'||e.key==='S') stillHeld=false;
+  if(e.key==='m'||e.key==='M') musicHeld=false;
+});
+
+// ── UPDATE ────────────────────────────────────────────────────────────────
+function update(dt){
+  if(!running) return;
+
+  nightTime+=dt;
+  updateClock();
+  if(nightTime>=NIGHT_DURATION){running=false;score+=500*night;playSurvive();endGame(true);return;}
+  document.getElementById('night-bar').style.width=(nightTime/NIGHT_DURATION*100)+'%';
+
+  // Update actions
+  peeking=peekHeld||keys['p']||keys['P'];
+  holdingStill=stillHeld||keys['s']||keys['S'];
+  windingMusic=musicHeld||keys['m']||keys['M'];
+
+  // Music box wind/drain
+  if(windingMusic){
+    musicBox=Math.min(1,musicBox+dt*0.18);
+    tuneTimer+=dt;
+    if(tuneTimer>0.35){tuneTimer=0;playMusicNote();}
+  } else {
+    musicBox=Math.max(0,musicBox-dt*0.04); // drains slowly
+  }
+  document.getElementById('music-bar').style.width=(musicBox*100)+'%';
+  document.getElementById('music-btn').className=windingMusic?'playing':'';
+  document.getElementById('music-label').textContent=windingMusic?'WINDING...':'MUSIC BOX';
+
+  // Breath mechanic
+  const currentPos=POSITIONS[mPos];
+  const danger=currentPos.danger;
+  const isNear=danger>0.5;
+
+  if(isNear&&peeking&&!holdingStill){
+    // Peeking when she's near — she might see you!
+    breath=Math.max(0,breath-dt*0.5);
+    breathDrain=true;
+    if(Math.random()<dt*0.3) showMsg('👁️ She might see you!\nHold still!');
+  } else if(isNear&&!holdingStill&&!windingMusic){
+    // Near but not holding still — she can hear you
+    breath=Math.max(0,breath-dt*0.3);
+    breathDrain=true;
+  } else if(holdingStill){
+    // Holding still — breathe slowly recover
+    breath=Math.min(1,breath+dt*0.15);
+    breathDrain=false;
+  } else {
+    breath=Math.min(1,breath+dt*0.1);
+    breathDrain=false;
+  }
+  document.getElementById('breath-bar').style.width=(breath*100)+'%';
+  document.getElementById('breath-bar').style.background=breath>0.5?'linear-gradient(90deg,#440088,#cc44ff)':breath>0.25?'linear-gradient(90deg,#884400,#ffaa00)':'linear-gradient(90deg,#880000,#ff4444)';
+
+  // Nightmarionne movement
+  mPosTimer-=dt;
+  // Music box keeps her at bay — when it runs out she gets attracted
+  const musicEffect=musicBox<0.2?1.5:musicBox<0.5?1.0:0.6;
+  // She hears you if you're moving (peeking/not still) and she's close
+  const makingNoise=(peeking||!holdingStill)&&isNear;
+  const moveSpeed=mSpeed*musicEffect*(makingNoise?1.4:1.0)*dt;
+
+  if(mPosTimer<=0){
+    // Move toward centre (security office = centre of room)
+    const targetPos=makingNoise?2:Math.max(0,mPos-1); // attracted to noise OR drifts toward centre
+    if(mPos<targetPos) mPos++;
+    else if(mPos>targetPos) mPos=Math.max(0,mPos-1);
+    // Random chance to wander sideways
+    else if(Math.random()<0.3) mPos=Math.max(0,Math.min(4,mPos+(Math.random()<0.5?-1:1)));
+    mPosTimer=(3+Math.random()*5)/musicEffect/(makingNoise?1.5:1);
+    if(isNear) playCreak();
+  }
+
+  // Near sound
+  nearSoundTimer=Math.max(0,nearSoundTimer-dt);
+  if(isNear&&nearSoundTimer<=0){nearSoundTimer=1.5+Math.random()*1.5;playNear();}
+
+  // Caught! — if she reaches centre and music is out and we're noisy
+  if(mPos===2&&musicBox<0.05&&(peeking||!holdingStill)){
+    nearTimer+=dt;
+    if(nearTimer>2.5){doJumpScare();return;}
+  } else {
+    nearTimer=Math.max(0,nearTimer-dt*0.5);
+  }
+
+  // If breath runs out while she's near
+  if(breath<=0&&isNear){doJumpScare();return;}
+
+  // Score for surviving
+  score+=night*dt*2;
+  if(Math.floor(nightTime)%20===0&&Math.floor(nightTime)!==Math.floor(nightTime-dt)){updateUI();}
+
+  // Update UI buttons
+  peekBtn.className=peeking?'peeking':'';
+  document.getElementById('peek-label').textContent=peeking?'PEEKING!':'PEEK OUT';
+  stillBtn.className=holdingStill?'holding':'';
+}
+
+function doJumpScare(){
+  running=false;playScream();
+  const js=document.getElementById('jumpscare');js.style.display='flex';
+  const jsc=document.createElement('canvas');jsc.width=W;jsc.height=H;js.appendChild(jsc);
+  const jCtx=jsc.getContext('2d');
+  jCtx.fillStyle='#ffffff';jCtx.fillRect(0,0,W,H);
+  setTimeout(()=>{
+    jCtx.fillStyle='#000';jCtx.fillRect(0,0,W,H);
+    drawNightmarionneJumpscare(jCtx,W/2,H/2,Math.min(W,H)*0.65);
+    setTimeout(()=>{
+      js.style.display='none';js.innerHTML='';
+      lives=Math.max(0,lives-1);
+      if(lives<=0){endGame(false);return;}
+      showMsg('💀 SHE FOUND YOU!\n'+lives+' 🎭 left');
+      mPos=0; mPosTimer=10; nearTimer=0; breath=1.0; musicBox=0.6;
+      updateUI();running=true;
+    },2200);
+  },160);
+}
+
+// ── DRAW ──────────────────────────────────────────────────────────────────
+function draw(dt){
+  bobTime+=dt||0.016;
+  const W2=W,H2=H;
+  const pos=POSITIONS[mPos];
+  const danger=pos.danger;
+
+  // ── BOX INTERIOR (default view) ────────────────────────────────────────
+  // Dark cardboard box interior
+  const boxG=ctx.createRadialGradient(W2/2,H2/2,20,W2/2,H2/2,H2*0.7);
+  boxG.addColorStop(0,'#1a0e08');boxG.addColorStop(1,'#0a0604');
+  ctx.fillStyle=boxG;ctx.fillRect(0,0,W2,H2);
+
+  // Box walls - cardboard texture
+  // Left wall
+  const lw=ctx.createLinearGradient(0,0,W2*0.25,0);
+  lw.addColorStop(0,'#2a1a0a');lw.addColorStop(1,'rgba(30,15,5,0)');
+  ctx.fillStyle=lw;ctx.fillRect(0,0,W2*0.3,H2);
+  // Right wall
+  const rw=ctx.createLinearGradient(W2,0,W2*0.75,0);
+  rw.addColorStop(0,'#2a1a0a');rw.addColorStop(1,'rgba(30,15,5,0)');
+  ctx.fillStyle=rw;ctx.fillRect(W2*0.7,0,W2*0.3,H2);
+  // Top wall (flaps)
+  const tw=ctx.createLinearGradient(0,0,0,H2*0.3);
+  tw.addColorStop(0,'#3a2a14');tw.addColorStop(1,'rgba(30,20,8,0)');
+  ctx.fillStyle=tw;ctx.fillRect(0,0,W2,H2*0.35);
+  // Bottom
+  ctx.fillStyle='rgba(20,12,4,0.8)';ctx.fillRect(0,H2*0.78,W2,H2*0.22);
+
+  // Box flap lines
+  ctx.strokeStyle='rgba(80,50,20,0.4)';ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(W2*0.15,0);ctx.lineTo(W2*0.35,H2*0.25);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(W2*0.85,0);ctx.lineTo(W2*0.65,H2*0.25);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(W2*0.5,0);ctx.lineTo(W2*0.5,H2*0.18);ctx.stroke();
+  // Cardboard corrugation lines
+  ctx.strokeStyle='rgba(60,35,10,0.2)';ctx.lineWidth=1;
+  for(let x=0;x<W2;x+=12){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H2);ctx.stroke();}
+
+  // ── PEEK VIEW (gap at top) ─────────────────────────────────────────────
+  const peekH=peeking?H2*0.32:H2*0.06;
+  const peekY=0;
+
+  // The gap - what Puppet sees through
+  ctx.save();
+  ctx.beginPath();
+  // Curved peek hole
+  ctx.ellipse(W2/2,peekY,W2*(peeking?0.45:0.18),peekH,0,0,Math.PI);
+  ctx.clip();
+
+  // Room outside
+  drawRoom(ctx,W2,H2,pos,danger);
+
+  // Nightmarionne seen through gap
+  if(peeking||danger>0.6){
+    const nmX=pos.x*W2;
+    const nmY=H2*0.12;
+    const nmSize=peeking?(0.12+danger*0.25)*H2:(0.04+danger*0.08)*H2;
+    if(nmSize>10) drawNightmarionne(ctx,nmX,nmY,nmSize,danger);
+  }
+
+  ctx.restore();
+
+  // Gap edge (cardboard lip)
+  ctx.strokeStyle='#3a2010';ctx.lineWidth=6;
+  ctx.beginPath();ctx.ellipse(W2/2,peekY,W2*(peeking?0.45:0.18),peekH,0,0,Math.PI);ctx.stroke();
+  ctx.strokeStyle='#5a3820';ctx.lineWidth=2;ctx.stroke();
+
+  // ── PUPPET ARMS in box ─────────────────────────────────────────────────
+  drawPuppetInBox(W2,H2);
+
+  // ── OVERLAYS ───────────────────────────────────────────────────────────
+  // Vignette
+  const vig=ctx.createRadialGradient(W2/2,H2/2,H2*0.1,W2/2,H2/2,H2*0.8);
+  vig.addColorStop(0,'rgba(0,0,0,0)');
+  vig.addColorStop(1,`rgba(${Math.floor(danger*60)},0,${Math.floor(danger*40)},${0.4+danger*0.4})`);
+  ctx.fillStyle=vig;ctx.fillRect(0,0,W2,H2);
+
+  // Danger pulse when she's near
+  if(danger>0.5){
+    const p=Math.sin(bobTime*3)*0.5+0.5;
+    ctx.fillStyle=`rgba(100,0,80,${p*(danger-0.5)*0.3})`;
+    ctx.fillRect(0,0,W2,H2);
+  }
+
+  // Music box warning
+  if(musicBox<0.2){
+    const p2=Math.sin(bobTime*6)*0.5+0.5;
+    ctx.fillStyle='rgba(0,0,0,0.0)';
+    ctx.strokeStyle=`rgba(255,170,0,${p2*0.6})`;ctx.lineWidth=6;
+    ctx.strokeRect(3,3,W2-6,H2-6);
+  }
+
+  // Location text when peeking
+  if(peeking){
+    ctx.fillStyle='rgba(200,100,255,0.7)';
+    ctx.font='bold 11px Orbitron,monospace';
+    ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText('👁 '+pos.name,W2/2,H2*0.34);
+  }
+}
+
+function drawRoom(ctx,W2,H2,pos,danger){
+  // Dark room / corridor
+  const roomG=ctx.createLinearGradient(0,0,0,H2*0.4);
+  roomG.addColorStop(0,'#050010');roomG.addColorStop(1,'#0a0520');
+  ctx.fillStyle=roomG;ctx.fillRect(0,0,W2,H2*0.4);
+
+  // Floor
+  ctx.fillStyle='#080418';ctx.fillRect(0,H2*0.3,W2,H2*0.1);
+
+  // Walls with perspective lines
+  ctx.strokeStyle='rgba(80,20,120,0.3)';ctx.lineWidth=1;
+  for(let i=0;i<6;i++){
+    const t=i/6;
+    ctx.beginPath();ctx.moveTo(W2*t,0);ctx.lineTo(W2/2,H2*0.3);ctx.stroke();
+  }
+
+  // Stars/lights on ceiling
+  ctx.fillStyle='rgba(180,100,255,0.15)';
+  for(let i=0;i<20;i++){
+    const lx=(i*157)%W2,ly=(i*97)%(H2*0.25);
+    const flk=Math.sin(bobTime*2+i)*0.3+0.7;
+    ctx.globalAlpha=flk*0.4;
+    ctx.beginPath();ctx.arc(lx,ly,1.5,0,Math.PI*2);ctx.fill();
+  }
+  ctx.globalAlpha=1;
+
+  // Ominous glow from her direction
+  if(danger>0.2){
+    const gx=pos.x*W2;
+    const dg=ctx.createRadialGradient(gx,H2*0.15,5,gx,H2*0.15,W2*0.4);
+    dg.addColorStop(0,`rgba(150,0,200,${danger*0.3})`);dg.addColorStop(1,'rgba(80,0,100,0)');
+    ctx.fillStyle=dg;ctx.fillRect(0,0,W2,H2*0.4);
+  }
+}
+
+function drawNightmarionne(ctx,x,y,s,danger){
+  ctx.save();ctx.translate(x,y);
+
+  // Strings hanging from above
+  ctx.strokeStyle=`rgba(200,180,220,${0.3+danger*0.3})`;ctx.lineWidth=0.8;
+  for(const sx of [-s*0.3,0,s*0.3]){
+    ctx.beginPath();ctx.moveTo(sx,-s*1.5);ctx.lineTo(sx,-s*0.4);ctx.stroke();
+  }
+
+  // Shadow body
+  ctx.fillStyle='rgba(0,0,0,0.6)';
+  ctx.beginPath();ctx.ellipse(s*0.1,s*0.1,s*0.42,s*0.55,0,0,Math.PI*2);ctx.fill();
+
+  // White face (Nightmarionne is white)
+  ctx.shadowColor='rgba(200,150,255,0.8)';ctx.shadowBlur=s*0.4*danger;
+  ctx.fillStyle='#e0e0e0';
+  ctx.beginPath();ctx.ellipse(0,-s*0.05,s*0.38,s*0.46,0,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;
+
+  // Purple cheek marks
+  ctx.fillStyle='rgba(140,60,180,0.8)';
+  ctx.beginPath();ctx.ellipse(-s*0.24,-s*0.02,s*0.1,s*0.06,-0.3,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(s*0.24,-s*0.02,s*0.1,s*0.06,0.3,0,Math.PI*2);ctx.fill();
+
+  // Red nose
+  ctx.fillStyle='#cc2222';ctx.beginPath();ctx.arc(0,-s*0.0,s*0.05,0,Math.PI*2);ctx.fill();
+
+  // HOLLOW black eyes (Nightmarionne has empty eye sockets)
+  ctx.fillStyle='#000';
+  ctx.beginPath();ctx.ellipse(-s*0.2,-s*0.18,s*0.12,s*0.16,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(s*0.2,-s*0.18,s*0.12,s*0.16,0,0,Math.PI*2);ctx.fill();
+
+  // Purple glow in eye sockets
+  ctx.shadowColor='#aa22ff';ctx.shadowBlur=s*0.2;
+  ctx.fillStyle=`rgba(150,0,220,${0.4+danger*0.5})`;
+  ctx.beginPath();ctx.ellipse(-s*0.2,-s*0.18,s*0.07,s*0.1,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(s*0.2,-s*0.18,s*0.07,s*0.1,0,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;
+
+  // Smile — wide and wrong
+  ctx.fillStyle='#111';
+  ctx.beginPath();ctx.ellipse(0,s*0.18,s*0.25,s*0.14,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#ddd';
+  for(let t=-2;t<=2;t++){
+    ctx.beginPath();ctx.moveTo(t*s*0.08-s*0.035,s*0.1);ctx.lineTo(t*s*0.08,s*0.22);ctx.lineTo(t*s*0.08+s*0.035,s*0.1);ctx.closePath();ctx.fill();
+  }
+
+  // Long thin arms/strings hanging
+  ctx.strokeStyle='rgba(0,0,0,0.7)';ctx.lineWidth=s*0.06;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(-s*0.3,s*0.1);ctx.quadraticCurveTo(-s*0.7,s*0.4,-s*0.8,s*0.2);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(s*0.3,s*0.1);ctx.quadraticCurveTo(s*0.7,s*0.4,s*0.8,s*0.2);ctx.stroke();
+
+  // Striped legs visible at bottom
+  ctx.lineWidth=s*0.14;
+  ctx.strokeStyle='rgba(0,0,0,0.8)';
+  ctx.beginPath();ctx.moveTo(-s*0.12,s*0.55);ctx.lineTo(-s*0.16,s*1.1);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(s*0.12,s*0.55);ctx.lineTo(s*0.16,s*1.1);ctx.stroke();
+  ctx.strokeStyle='rgba(180,60,220,0.5)';ctx.lineWidth=s*0.05;
+  for(let i=0;i<4;i++){
+    const ly=s*0.6+i*s*0.13;
+    ctx.beginPath();ctx.moveTo(-s*0.13,ly);ctx.lineTo(-s*0.19,ly);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(s*0.13,ly);ctx.lineTo(s*0.19,ly);ctx.stroke();
+  }
+
+  // VERY CLOSE — she's staring right at the box
+  if(danger>0.6&&peeking){
+    ctx.fillStyle=`rgba(100,0,150,${(danger-0.6)*0.5})`;
+    ctx.beginPath();ctx.ellipse(0,0,s*0.5,s*0.65,0,0,Math.PI*2);ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+function drawPuppetInBox(W2,H2){
+  // Puppet's own hands/body peeking from inside the box
+  const bob=Math.sin(bobTime*2)*2;
+  ctx.save();ctx.translate(W2/2,H2*0.72+bob);
+  const s=Math.min(60,H2*0.1);
+
+  // Puppet white face at bottom
+  ctx.shadowColor='#cc44ff';ctx.shadowBlur=holdingStill?4:10;
+  ctx.fillStyle='#e0e0e0';
+  ctx.beginPath();ctx.ellipse(0,0,s*0.55,s*0.6,0,0,Math.PI*2);ctx.fill();
+
+  // Purple cheeks
+  ctx.fillStyle='rgba(120,40,160,0.7)';
+  ctx.beginPath();ctx.ellipse(-s*0.32,-s*0.05,s*0.14,s*0.07,-0.3,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(s*0.32,-s*0.05,s*0.14,s*0.07,0.3,0,Math.PI*2);ctx.fill();
+
+  // Red nose
+  ctx.fillStyle='#cc2222';ctx.shadowBlur=0;
+  ctx.beginPath();ctx.arc(0,s*0.04,s*0.065,0,Math.PI*2);ctx.fill();
+
+  // Eyes — wide open or squinting based on state
+  ctx.fillStyle='#111';
+  const eyeOpen=holdingStill?0.08:0.13;
+  ctx.beginPath();ctx.ellipse(-s*0.22,-s*0.15,s*0.1,s*eyeOpen,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(s*0.22,-s*0.15,s*0.1,s*eyeOpen,0,0,Math.PI*2);ctx.fill();
+  // Pupils
+  ctx.fillStyle='#fff';
+  ctx.beginPath();ctx.arc(-s*0.19,-s*0.14,s*0.04,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(s*0.25,-s*0.14,s*0.04,0,Math.PI*2);ctx.fill();
+
+  // Mouth — scared/hiding
+  ctx.strokeStyle='#333';ctx.lineWidth=2;
+  if(holdingStill){
+    // Tight scared line
+    ctx.beginPath();ctx.moveTo(-s*0.15,s*0.22);ctx.lineTo(s*0.15,s*0.22);ctx.stroke();
+  } else {
+    // Small worried curve
+    ctx.beginPath();ctx.arc(0,s*0.18,s*0.1,0.2,Math.PI-0.2);ctx.stroke();
+  }
+
+  // Puppet strings
+  ctx.shadowBlur=0;
+  ctx.strokeStyle='rgba(200,180,220,0.3)';ctx.lineWidth=0.8;
+  for(const sx of [-s*0.35,0,s*0.35]){
+    ctx.beginPath();ctx.moveTo(sx,-s*0.6);ctx.lineTo(sx,-s*1.5);ctx.stroke();
+  }
+
+  // Hands gripping box edge
+  ctx.fillStyle='#e0e0e0';
+  ctx.shadowColor='#cc44ff';ctx.shadowBlur=4;
+  // Left hand
+  ctx.save();ctx.translate(-W2*0.22,s*0.3);
+  ctx.beginPath();ctx.ellipse(0,0,s*0.3,s*0.16,0.3,0,Math.PI*2);ctx.fill();
+  for(let f=-1;f<=1;f++){ctx.beginPath();ctx.ellipse(f*s*0.1,-s*0.13,s*0.065,s*0.12,f*0.15,0,Math.PI*2);ctx.fill();}
+  ctx.restore();
+  // Right hand
+  ctx.save();ctx.translate(W2*0.22,s*0.3);
+  ctx.beginPath();ctx.ellipse(0,0,s*0.3,s*0.16,-0.3,0,Math.PI*2);ctx.fill();
+  for(let f=-1;f<=1;f++){ctx.beginPath();ctx.ellipse(f*s*0.1,-s*0.13,s*0.065,s*0.12,f*0.15,0,Math.PI*2);ctx.fill();}
+  ctx.restore();
+
+  ctx.restore();
+}
+
+function drawNightmarionneJumpscare(c,cx,cy,s){
+  c.save();c.translate(cx,cy);
+  c.shadowColor='#aa00ff';c.shadowBlur=80;
+  // White face filling screen
+  c.fillStyle='#e8e8e8';
+  c.beginPath();c.ellipse(0,0,s*0.52,s*0.58,0,0,Math.PI*2);c.fill();
+  c.fillStyle='rgba(140,60,180,0.8)';
+  c.beginPath();c.ellipse(-s*0.25,-s*0.02,s*0.11,s*0.07,-0.3,0,Math.PI*2);c.fill();
+  c.beginPath();c.ellipse(s*0.25,-s*0.02,s*0.11,s*0.07,0.3,0,Math.PI*2);c.fill();
+  c.fillStyle='#cc2222';c.beginPath();c.arc(0,0,s*0.055,0,Math.PI*2);c.fill();
+  c.fillStyle='#000';
+  c.beginPath();c.ellipse(-s*0.22,-s*0.18,s*0.13,s*0.18,0,0,Math.PI*2);c.fill();
+  c.beginPath();c.ellipse(s*0.22,-s*0.18,s*0.13,s*0.18,0,0,Math.PI*2);c.fill();
+  c.shadowColor='#aa00ff';c.shadowBlur=30;c.fillStyle='rgba(160,0,255,0.7)';
+  c.beginPath();c.ellipse(-s*0.22,-s*0.18,s*0.08,s*0.11,0,0,Math.PI*2);c.fill();
+  c.beginPath();c.ellipse(s*0.22,-s*0.18,s*0.08,s*0.11,0,0,Math.PI*2);c.fill();
+  c.shadowBlur=0;c.fillStyle='#111';
+  c.beginPath();c.ellipse(0,s*0.2,s*0.3,s*0.17,0,0,Math.PI*2);c.fill();
+  c.fillStyle='#ccc';
+  for(let t=-3;t<=3;t++){c.beginPath();c.moveTo(t*s*.07-s*.03,s*.1);c.lineTo(t*s*.07,s*.28);c.lineTo(t*s*.07+s*.03,s*.1);c.closePath();c.fill();}
+  c.restore();
+}
+
+// ── CLOCK + UI ────────────────────────────────────────────────────────────
+function updateClock(){
+  const mins=(nightTime/NIGHT_DURATION)*360,h=Math.floor(mins/60),m=Math.floor(mins%60);
+  const el=document.getElementById('clock-txt');
+  el.textContent=(h===0?12:h)+':'+(m<10?'0':'')+m+' AM';
+  el.style.color=NIGHT_DURATION-nightTime<60?(Math.floor(Date.now()/400)%2?'#ff4444':'#ffaaaa'):'#aaddff';
+}
+function updateUI(){
+  document.getElementById('score-txt').textContent='🎁 '+Math.floor(score);
+  document.getElementById('night-txt').textContent='NIGHT '+night;
+  document.getElementById('lives-txt').textContent='🎭'.repeat(Math.max(0,lives));
+}
+function showMsg(t){const el=document.getElementById('msg');el.textContent=t;el.style.opacity='1';clearTimeout(msgTimer);msgTimer=setTimeout(()=>el.style.opacity='0',2000);}
+
+function endGame(win){
+  const ov=document.getElementById('overlay');
+  if(win){
+    const more=night<5;
+    if(more){
+      ov.innerHTML=`<h1>🌅 6 AM — SAFE!</h1>
+        <p style="color:#cc88ff;font-size:1.1rem;margin:6px 0;">Night ${night} survived! +${500*night} pts</p>
+        <p style="color:#ffd700;">Score: ${Math.floor(score)}</p>
+        <p style="color:#ff8888;margin-top:6px;">Night ${night+1}: She gets faster...</p>`;
+      ov.style.display='flex';
+      const btn=document.createElement('button');
+      btn.className='btn'; btn.textContent='▶ NEXT NIGHT';
+      btn.addEventListener('click',()=>{ ea();ov.style.display='none';night++;startNight(night);running=true; });
+      ov.appendChild(btn); ov.appendChild(HS._homeBtn());
+    } else {
+      HS.showGameOver({
+        key:'puppet_box', score:Math.floor(score), overlayEl:ov,
+        title:'🏆 ALL 5 NIGHTS SURVIVED!',
+        subtitle:'The Puppet is safe! Nightmarionne has been defeated!',
+        btnLabel:'▶ PLAY AGAIN',
+        onRestart:()=>{ ea();score=0;lives=3;night=1;startNight(1);running=true; },
+        hiColor:'#cc44ff',
+        titleStyle:"font-family:'Creepster',cursive;font-size:clamp(1.6rem,5vw,2.6rem);color:#cc44ff;text-shadow:0 0 30px #8800cc;letter-spacing:2px;text-align:center;margin-bottom:8px",
+        btnClass:'btn'
+      });
+    }
+  } else {
+    HS.showGameOver({
+      key:'puppet_box', score:Math.floor(score), overlayEl:ov,
+      title:'💀 SHE FOUND YOU!',
+      subtitle:`Night ${night} · Keep the music box wound next time...`,
+      btnLabel:'▶ HIDE AGAIN',
+      onRestart:()=>{ ea();score=0;lives=3;night=1;startNight(1);running=true; },
+      hiColor:'#cc44ff',
+      titleStyle:"font-family:'Creepster',cursive;font-size:clamp(1.8rem,6vw,3rem);color:#cc44ff;text-shadow:0 0 30px #8800cc;letter-spacing:2px;text-align:center;margin-bottom:8px",
+      btnClass:'btn'
+    });
+  }
+}
+
+// ── LOOP ──────────────────────────────────────────────────────────────────
+let lastTime=0;
+function loop(now){
+  const dt=Math.min((now-lastTime)/1000,0.05);lastTime=now;
+  try{update(dt);draw(dt);}catch(e){console.error(e);}
+  requestAnimationFrame(loop);
+}
+document.getElementById('startBtn').addEventListener('click',()=>{
+  ea();document.getElementById('overlay').style.display='none';
+  startNight(1);running=true;
+});
+requestAnimationFrame(t=>{lastTime=t;requestAnimationFrame(loop);});
+</script>
+</body>
+</html>
