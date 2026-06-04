@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Puppet Shooter!</title>
+<script src="leaderboard.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Creepster&family=Bangers&display=swap');
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -367,14 +368,18 @@ function loop() {
 
 function gameOver() {
   running = false;
-  const ov = document.getElementById('overlay');
-  ov.style.display = 'flex';
-  ov.innerHTML = `
-    <h2>GAME OVER!</h2>
-    <p style="color:#ffd700;font-size:1.5rem;">SCORE: ${score}</p>
-    <p style="color:#aaa;">The Puppet got you... this time.</p>
-    <button class="play-btn" onclick="ensureAudio();startGame()">▶ TRY AGAIN!</button>
-  `;
+  HS.showGameOver({
+    key: 'puppet',
+    score,
+    overlayEl: document.getElementById('overlay'),
+    title: 'GAME OVER!',
+    subtitle: 'The Puppet got you... this time.',
+    btnLabel: '▶ TRY AGAIN!',
+    onRestart: () => { ensureAudio(); startGame(); },
+    hiColor: '#ffd700',
+    titleStyle: 'font-family:\'Creepster\',cursive;font-size:3rem;color:#e8c5ff;text-shadow:0 0 30px #9b4dca;margin-bottom:12px',
+    btnClass: 'play-btn'
+  });
 }
 </script>
 </body>

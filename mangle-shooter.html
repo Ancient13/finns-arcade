@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mangle vs Stitchwraith!</title>
+<script src="leaderboard.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Creepster&family=Bangers&display=swap');
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -502,14 +503,18 @@ function loop() {
 
 function gameOver() {
   running=false;
-  const ov=document.getElementById('overlay');
-  ov.style.display='flex';
-  ov.innerHTML=`
-    <h2 style="font-family:'Creepster',cursive;font-size:2.8rem;color:#cc88ff;text-shadow:0 0 24px #8844cc;margin-bottom:10px;">GAME OVER!</h2>
-    <p style="color:#ffd700;font-size:1.4rem;font-family:'Bangers',cursive;letter-spacing:2px;">SCORE: ${score}</p>
-    <p style="color:#888;font-family:'Bangers',cursive;">The Stitchwraiths got Mangle...</p>
-    <button class="play-btn" onclick="ensureAudio();startGame()">▶ TRY AGAIN!</button>
-  `;
+  HS.showGameOver({
+    key: 'mangle',
+    score,
+    overlayEl: document.getElementById('overlay'),
+    title: 'GAME OVER!',
+    subtitle: 'The Stitchwraiths got Mangle...',
+    btnLabel: '▶ TRY AGAIN!',
+    onRestart: () => { ensureAudio(); startGame(); },
+    hiColor: '#cc88ff',
+    titleStyle: 'font-family:\'Creepster\',cursive;font-size:2.8rem;color:#cc88ff;text-shadow:0 0 24px #8844cc;margin-bottom:10px',
+    btnClass: 'play-btn'
+  });
 }
 </script>
 </body>
