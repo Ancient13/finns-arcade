@@ -50,6 +50,17 @@
     -webkit-tap-highlight-color:transparent; pointer-events:all;
   }
 
+  /* Fire button */
+  #fire-btn {
+    position:fixed; bottom:28px; left:50%; transform:translateX(-50%);
+    width:72px; height:72px; border-radius:50%;
+    background:radial-gradient(circle at 35% 35%,#ff8844,#660000);
+    border:3px solid #ff4400; font-size:1.8rem;
+    display:flex; align-items:center; justify-content:center;
+    z-index:15; cursor:pointer; box-shadow:0 0 20px #ff440066;
+    -webkit-tap-highlight-color:transparent; pointer-events:all;
+  }
+
   /* Joystick */
   #joy-zone { position:fixed; bottom:24px; left:24px; width:120px; height:120px; z-index:15; pointer-events:all; }
   #joy-base { width:120px; height:120px; border-radius:50%; background:rgba(0,255,204,0.06); border:2px solid rgba(0,255,204,0.25); position:absolute; }
@@ -106,6 +117,7 @@
 
 <div id="joy-zone"><div id="joy-base"></div><div id="joy-knob"></div></div>
 <div id="thrust-btn">🚀</div>
+<div id="fire-btn">🔫</div>
 <div id="msg"></div>
 
 <div id="overlay">
@@ -114,7 +126,8 @@
   <p style="color:#00ffcc;">Fly your ship · Survive until 6 AM!</p>
   <p style="color:#ffcc00;font-weight:900;margin-top:6px;">⚠️ Don't let Freddy catch your ship!</p>
   <p style="color:#666;margin-top:6px;font-size:0.8rem;">⚡ Collect power-ups to boost speed &amp; shields!</p>
-  <p style="color:#444;margin-top:8px;font-size:0.78rem;">Joystick / WASD = steer · 🚀 / Space = thrust</p>
+  <p style="color:#444;margin-top:8px;font-size:0.78rem;">Joystick / WASD = steer · 🚀 / Space = thrust · 🔫 / Z = fire</p>
+  <p style="color:#ff8844;margin-top:4px;font-size:0.78rem;">🎯 Shoot Freddy to slow him · 💥 Blast asteroids &amp; planets!</p>
   <button class="btn" id="startBtn">▶ LAUNCH!</button>
 </div>
 
@@ -141,12 +154,17 @@ function playGrowl(){
     src.connect(f); f.connect(g); g.connect(ac.destination); src.start();
   }catch(e){}
 }
+function playShoot(){ beep(880,'square',0.07,0.14,500); }
+function playExplosion(){ beep(60,'sawtooth',0.5,0.4,20); }
 
 // ── STATE ──────────────────────────────────────────────────────────────────
 const NIGHT_DURATION=360;
 let score=0,lives=3,night=1,running=false;
 let nightTime=0,hull=100,msgTimer=null,growlTimer=0;
 let shieldTimer=0, speedBoostTimer=0;
+let bullets=[], planets=[];
+let fireCooldown=0, fireHeld=false;
+let freddySlowTimer=0, freddyFlashTimer=0;
 
 // Player ship
 let sx=0,sy=0,sAngle=0,svx=0,svy=0;
@@ -190,6 +208,23 @@ function spawnAsteroids(n){
       vx:(Math.random()-0.5)*40, vy:(Math.random()-0.5)*40,
       r:20+Math.random()*35, rot:0, rotSpd:(Math.random()-0.5)*1.2,
       color:`hsl(${20+Math.random()*20},30%,${25+Math.random()*20}%)`,
+      hp:2,
+    });
+  }
+}
+
+function spawnPlanets(n){
+  planets=[];
+  const count=1+Math.floor(n/2);
+  const palettes=[['#3355bb','#6699ff'],['#bb5511','#ff8833'],['#115533','#33ddaa'],['#771133','#ff3377'],['#443388','#9977ff']];
+  for(let i=0;i<count;i++){
+    const c=palettes[Math.floor(Math.random()*palettes.length)];
+    const r=70+Math.random()*80;
+    const mhp=4+n*2;
+    planets.push({
+      x:300+Math.random()*(WORLD-600), y:300+Math.random()*(WORLD-600),
+      r, col:c[0], col2:c[1], ring:Math.random()>0.5,
+      hp:mhp, maxHp:mhp, ringAngle:Math.random()*Math.PI*2
     });
   }
 }
@@ -197,6 +232,7 @@ function spawnAsteroids(n){
 function startNight(n){
   night=n; nightTime=0; hull=100;
   shieldTimer=0; speedBoostTimer=0; growlTimer=0;
+  bullets=[]; fireCooldown=0; freddySlowTimer=0; freddyFlashTimer=0;
   fspeed=55+n*15;
 
   // Ship starts in centre
@@ -207,6 +243,7 @@ function startNight(n){
   initStars();
   spawnPowerups();
   spawnAsteroids(4+n*2);
+  spawnPlanets(n);
   updateUI();
 }
 
@@ -233,6 +270,12 @@ thrustBtn.addEventListener('touchend',  e=>{ e.preventDefault(); thrustHeld=fals
 thrustBtn.addEventListener('mousedown', ()=>thrustHeld=true);
 thrustBtn.addEventListener('mouseup',   ()=>thrustHeld=false);
 
+const fireBtn=document.getElementById('fire-btn');
+fireBtn.addEventListener('touchstart',e=>{ e.preventDefault(); fireHeld=true; });
+fireBtn.addEventListener('touchend',  e=>{ e.preventDefault(); fireHeld=false; });
+fireBtn.addEventListener('mousedown', ()=>fireHeld=true);
+fireBtn.addEventListener('mouseup',   ()=>fireHeld=false);
+
 // ── UPDATE ─────────────────────────────────────────────────────────────────
 let lastTime=0;
 function update(dt){
@@ -250,6 +293,8 @@ function update(dt){
   shieldTimer=Math.max(0,shieldTimer-dt);
   speedBoostTimer=Math.max(0,speedBoostTimer-dt);
   growlTimer=Math.max(0,growlTimer-dt);
+  freddySlowTimer=Math.max(0,freddySlowTimer-dt);
+  freddyFlashTimer=Math.max(0,freddyFlashTimer-dt);
 
   // Ship steering
   const turnSpd=2.8*dt;
@@ -284,6 +329,14 @@ function update(dt){
   // Wrap around world
   sx=((sx%WORLD)+WORLD)%WORLD; sy=((sy%WORLD)+WORLD)%WORLD;
 
+  // Shoot
+  fireCooldown=Math.max(0,fireCooldown-dt);
+  if((fireHeld||keys['z']||keys['Z'])&&fireCooldown<=0&&running){
+    fireCooldown=0.22;
+    bullets.push({x:sx+Math.cos(sAngle)*30,y:sy+Math.sin(sAngle)*30,vx:Math.cos(sAngle)*680+svx,vy:Math.sin(sAngle)*680+svy,life:1.3});
+    playShoot();
+  }
+
   // Freddy AI - chases ship
   const fdx=sx-fx, fdy=sy-fy;
   const fdist=Math.hypot(fdx,fdy);
@@ -294,12 +347,79 @@ function update(dt){
   // Smooth turn
   let fad=ftargetAngle-fAngle; while(fad>Math.PI)fad-=Math.PI*2; while(fad<-Math.PI)fad+=Math.PI*2;
   fAngle+=fad*3.5*dt;
-  fx+=Math.cos(fAngle)*fspeed*dt; fy+=Math.sin(fAngle)*fspeed*dt;
+  const effSpeed=freddySlowTimer>0?fspeed*0.35:fspeed;
+  fx+=Math.cos(fAngle)*effSpeed*dt; fy+=Math.sin(fAngle)*effSpeed*dt;
   fx=((fx%WORLD)+WORLD)%WORLD; fy=((fy%WORLD)+WORLD)%WORLD;
 
   // Freddy growl
   const realDist=Math.hypot(wfdx,wfdy);
   if(realDist<400&&growlTimer<=0){ growlTimer=1.5+Math.random()*1.5; playGrowl(); }
+
+  // Bullets update
+  for(let i=bullets.length-1;i>=0;i--){
+    const b=bullets[i];
+    b.x+=b.vx*dt; b.y+=b.vy*dt;
+    b.x=((b.x%WORLD)+WORLD)%WORLD; b.y=((b.y%WORLD)+WORLD)%WORLD;
+    b.life-=dt;
+    if(b.life<=0){bullets.splice(i,1);continue;}
+    // vs Freddy
+    const bfx=b.x-fx,bfy=b.y-fy;
+    const wbfx=bfx>WORLD/2?bfx-WORLD:bfx<-WORLD/2?bfx+WORLD:bfx;
+    const wbfy=bfy>WORLD/2?bfy-WORLD:bfy<-WORLD/2?bfy+WORLD:bfy;
+    if(Math.hypot(wbfx,wbfy)<42){
+      bullets.splice(i,1);
+      freddySlowTimer=Math.min(6,freddySlowTimer+2.5);
+      freddyFlashTimer=0.5;
+      score+=50;
+      spawnBoom(fx,fy,'#ff8800');
+      showMsg('🎯 FREDDY HIT!\nSlowed for '+Math.round(freddySlowTimer)+'s!');
+      playHit();
+      updateUI();
+      continue;
+    }
+    // vs Asteroids
+    let hit=false;
+    for(let j=asteroids.length-1;j>=0;j--){
+      const a=asteroids[j];
+      const bax=b.x-a.x,bay=b.y-a.y;
+      const wbax=bax>WORLD/2?bax-WORLD:bax<-WORLD/2?bax+WORLD:bax;
+      const wbay=bay>WORLD/2?bay-WORLD:bay<-WORLD/2?bay+WORLD:bay;
+      if(Math.hypot(wbax,wbay)<a.r+4){
+        bullets.splice(i,1); hit=true;
+        a.hp--;
+        spawnBoom(a.x,a.y,'#cc6622');
+        if(a.hp<=0){
+          score+=25*night;
+          for(let k=0;k<8;k++) spawnBoom(a.x+(Math.random()-0.5)*a.r,a.y+(Math.random()-0.5)*a.r,'#cc6622');
+          asteroids.splice(j,1);
+          showMsg('💥 ASTEROID DESTROYED!\n+'+25*night+' pts');
+          playExplosion();
+        } else { showMsg('🪨 ASTEROID HIT!'); }
+        updateUI(); break;
+      }
+    }
+    if(hit) continue;
+    // vs Planets
+    for(let j=planets.length-1;j>=0;j--){
+      const pl=planets[j];
+      const bpx=b.x-pl.x,bpy=b.y-pl.y;
+      const wbpx=bpx>WORLD/2?bpx-WORLD:bpx<-WORLD/2?bpx+WORLD:bpx;
+      const wbpy=bpy>WORLD/2?bpy-WORLD:bpy<-WORLD/2?bpy+WORLD:bpy;
+      if(Math.hypot(wbpx,wbpy)<pl.r){
+        bullets.splice(i,1);
+        pl.hp--;
+        spawnBoom(pl.x+(Math.random()-0.5)*pl.r,pl.y+(Math.random()-0.5)*pl.r,pl.col2);
+        if(pl.hp<=0){
+          score+=200*night;
+          for(let k=0;k<30;k++) spawnBoom(pl.x+(Math.random()-0.5)*pl.r*2,pl.y+(Math.random()-0.5)*pl.r*2,k%2?pl.col:pl.col2);
+          planets.splice(j,1);
+          showMsg('🌍 PLANET DESTROYED!\n+'+200*night+' pts!');
+          playExplosion();
+        }
+        updateUI(); break;
+      }
+    }
+  }
 
   // Freddy catches ship
   if(realDist<50){
@@ -417,6 +537,30 @@ function draw(){
     return{x:W/2+dx, y:H/2+dy};
   }
 
+  // Planets
+  for(const pl of planets){
+    const p=wts(pl.x,pl.y);
+    if(p.x<-pl.r-20||p.x>W+pl.r+20||p.y<-pl.r-20||p.y>H+pl.r+20) continue;
+    ctx.save(); ctx.translate(p.x,p.y);
+    const pg=ctx.createRadialGradient(-pl.r*0.3,-pl.r*0.3,pl.r*0.1,0,0,pl.r);
+    pg.addColorStop(0,pl.col2); pg.addColorStop(1,pl.col);
+    ctx.fillStyle=pg; ctx.shadowColor=pl.col2; ctx.shadowBlur=30;
+    ctx.beginPath(); ctx.arc(0,0,pl.r,0,Math.PI*2); ctx.fill();
+    if(pl.ring){
+      ctx.strokeStyle=pl.col2; ctx.lineWidth=8; ctx.globalAlpha=0.35;
+      ctx.beginPath(); ctx.ellipse(0,0,pl.r*1.55,pl.r*0.3,pl.ringAngle,0,Math.PI*2); ctx.stroke();
+      ctx.globalAlpha=1;
+    }
+    // HP bar
+    const hpPct=pl.hp/pl.maxHp;
+    ctx.globalAlpha=0.85; ctx.fillStyle='#222'; ctx.shadowBlur=0;
+    ctx.fillRect(-35,-pl.r-22,70,10);
+    ctx.fillStyle=hpPct>0.5?'#44ff44':hpPct>0.25?'#ffaa00':'#ff4444';
+    ctx.fillRect(-35,-pl.r-22,70*hpPct,10);
+    ctx.globalAlpha=1;
+    ctx.restore();
+  }
+
   // Asteroids
   for(const a of asteroids){
     const p=wts(a.x,a.y);
@@ -456,6 +600,16 @@ function draw(){
     ctx.save(); ctx.globalAlpha=Math.max(0,p.life);
     ctx.fillStyle=p.col; ctx.shadowColor=p.col; ctx.shadowBlur=8;
     ctx.beginPath(); ctx.arc(sp.x,sp.y,p.r*p.life,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+
+  // Bullets
+  for(const b of bullets){
+    const sp=wts(b.x,b.y);
+    if(sp.x<-15||sp.x>W+15||sp.y<-15||sp.y>H+15) continue;
+    ctx.save(); ctx.translate(sp.x,sp.y); ctx.rotate(Math.atan2(b.vy,b.vx));
+    ctx.fillStyle='#ffffaa'; ctx.shadowColor='#ffff00'; ctx.shadowBlur=16;
+    ctx.beginPath(); ctx.ellipse(0,0,11,3,0,0,Math.PI*2); ctx.fill();
     ctx.restore();
   }
 
@@ -597,6 +751,21 @@ function drawFreddy(sp){
   ctx.strokeStyle='#2a1808'; ctx.lineWidth=s*.14; ctx.lineCap='round';
   ctx.beginPath(); ctx.moveTo(-s*.3,s*.1); ctx.quadraticCurveTo(-s*.65,s*.25,-s*.72,s*.1); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(s*.3,s*.1); ctx.quadraticCurveTo(s*.65,s*.25,s*.72,s*.1); ctx.stroke();
+
+  // Slow indicator
+  if(freddySlowTimer>0){
+    ctx.shadowColor='#4488ff'; ctx.shadowBlur=10;
+    ctx.fillStyle='#aaccff'; ctx.font=`bold ${s*0.36}px Orbitron,monospace`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('🐌SLOW',0,-s*1.2);
+  }
+  // Hit flash
+  if(freddyFlashTimer>0){
+    ctx.globalAlpha=freddyFlashTimer*0.85;
+    ctx.fillStyle='#ff4400';
+    ctx.beginPath(); ctx.arc(0,0,s*0.58,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha=1;
+  }
 
   ctx.restore();
 }
