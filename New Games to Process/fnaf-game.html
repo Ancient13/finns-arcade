@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Five Nights at Peppy's</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Creepster&family=Share+Tech+Mono&display=swap');
+
+  :root {
+    --green: #00ff41;
+    --red: #ff2020;
+    --amber: #ffb300;
+    --dark: #050a04;
+    --panel: #0a140a;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--dark);
+    color: var(--green);
+    font-family: 'Share Tech Mono', monospace;
+    height: 100vh;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* ── START SCREEN ── */
+  #start-screen {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; height: 100vh; text-align: center; gap: 20px;
+  }
+  #start-screen h1 {
+    font-family: 'Creepster', cursive;
+    font-size: clamp(2rem,8vw,5rem);
+    color: var(--red);
+    text-shadow: 0 0 30px #ff000088, 0 0 60px #ff000044;
+    animation: flicker 4s infinite;
+  }
+  #start-screen p { color: #aaa; font-size: 0.9rem; max-width: 420px; line-height: 1.7; }
+
+  .btn {
+    background: transparent; border: 2px solid var(--green);
+    color: var(--green); font-family: 'Share Tech Mono', monospace;
+    font-size: 1rem; padding: 12px 32px; cursor: pointer;
+    text-transform: uppercase; letter-spacing: 3px; transition: all 0.2s;
+    box-shadow: 0 0 10px #00ff4122;
+  }
+  .btn:hover { background: var(--green); color: var(--dark); box-shadow: 0 0 20px #00ff41aa; }
+
+  /* ── GAME SCREEN ── */
+  #game-screen { display: none; height: 100vh; flex-direction: column; }
+
+  /* HUD */
+  #hud {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 16px; background: var(--panel);
+    border-bottom: 1px solid #00ff4133; font-size: 0.78rem; flex-shrink: 0;
+  }
+  #power-bar-wrap { display: flex; align-items: center; gap: 8px; }
+  #power-bar { width: 100px; height: 9px; background: #111; border: 1px solid #333; overflow: hidden; }
+  #power-fill { height: 100%; background: var(--green); width: 100%; transition: width 0.5s, background 0.5s; }
+  #clock { font-size: 1.1rem; color: var(--amber); text-shadow: 0 0 10px var(--amber); }
+  #night-label { color: var(--red); font-size: 0.8rem; }
+
+  /* ── MAIN AREA ── */
+  #main-area { flex: 1; display: grid; grid-template-columns: 1fr 240px; overflow: hidden; }
+
+  /* ── CENTRE VIEW (holds office OR cameras) ── */
+  #centre-view { position: relative; background: #000; overflow: hidden; }
+
+  /* OFFICE VIEW */
+  #office-view {
+    display: flex; align-items: center; justify-content: center;
+    width: 100%; height: 100%; flex-direction: column; gap: 0;
+    background: radial-gradient(ellipse at center, #0d1a0d 0%, #020802 100%);
+  }
+  #office-scene {
+    width: 100%; flex: 1; position: relative;
+    display: flex; align-items: flex-end; justify-content: center; padding-bottom: 20px;
+  }
+  /* Desk */
+  .desk {
+    width: 55%; height: 22%; background: #1a0e00;
+    border-top: 4px solid #3a2000; border-radius: 4px 4px 0 0;
+    position: relative; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 -6px 20px #00000088;
+  }
+  .desk-label { color: #3a2a00; font-size: 0.65rem; letter-spacing: 2px; }
+
+  /* Door panels */
+  .door-panel {
+    position: absolute; bottom: 0; width: 13%; height: 88%;
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: flex-end; gap: 10px; padding-bottom: 24px;
+  }
+  #left-panel  { left: 2%; }
+  #right-panel { right: 2%; }
+
+  .door-visual {
+    width: 80%; flex: 1; border: 2px solid #333;
+    border-radius: 4px 4px 0 0; position: relative; overflow: hidden;
+    transition: background 0.3s;
+  }
+  .door-visual.open  { background: #000; }
+  .door-visual.closed { background: #1a3a1a; border-color: var(--red); box-shadow: 0 0 12px #ff000066; }
+
+  /* Animatronic lurking in doorway */
+  .door-lurker {
+    position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+    font-size: 2.5vw; display: none; animation: lurk 0.6s infinite alternate;
+  }
+  .door-lurker.visible { display: block; }
+
+  .door-light {
+    width: 16px; height: 16px; border-radius: 50%; border: 1px solid #555; cursor: pointer;
+    transition: all 0.2s; flex-shrink: 0;
+  }
+  .door-light.on-green { background: #00ff41; box-shadow: 0 0 12px var(--green); border-color: var(--green); }
+  .door-light.on-red   { background: var(--red); box-shadow: 0 0 12px var(--red); border-color: var(--red); }
+
+  .big-door-btn {
+    background: #111; border: 2px solid #555; color: #aaa;
+    font-family: 'Share Tech Mono', monospace; font-size: 0.65rem;
+    padding: 6px 8px; cursor: pointer; width: 100%; text-align: center;
+    transition: all 0.2s; letter-spacing: 1px;
+  }
+  .big-door-btn.closed { border-color: var(--red); color: var(--red); box-shadow: 0 0 8px #ff000044; }
+  .big-door-btn:hover { background: #1a2a1a; }
+
+  /* CAMERA VIEW */
+  #cam-view { display: none; width: 100%; height: 100%; position: relative; background: #000; }
+  #cam-canvas { width: 100%; height: 100%; display: block; }
+  .cam-overlay {
+    position: absolute; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(transparent, transparent 2px, rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px);
+  }
+  #cam-label {
+    position: absolute; top: 10px; left: 10px; font-size: 0.75rem;
+    color: var(--green); text-shadow: 0 0 6px var(--green);
+    background: rgba(0,0,0,0.6); padding: 2px 8px;
+  }
+
+  /* Toggle button (bottom centre of centre view) */
+  #view-toggle-wrap {
+    position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); z-index: 10;
+  }
+  #view-toggle-btn {
+    background: #0a140a; border: 1px solid var(--green); color: var(--green);
+    font-family: 'Share Tech Mono', monospace; font-size: 0.72rem;
+    padding: 6px 18px; cursor: pointer; letter-spacing: 2px;
+    box-shadow: 0 0 10px #00ff4133; transition: all 0.2s;
+  }
+  #view-toggle-btn:hover { background: #0d200d; box-shadow: 0 0 18px #00ff4166; }
+
+  /* Scanlines overlay on office */
+  #office-scanlines {
+    position: absolute; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(transparent, transparent 3px, rgba(0,0,0,0.06) 3px, rgba(0,0,0,0.06) 6px);
+  }
+
+  /* ── SIDE PANEL ── */
+  #side-panel {
+    background: var(--panel); border-left: 1px solid #00ff4133;
+    display: flex; flex-direction: column; padding: 10px; gap: 10px; overflow-y: auto;
+  }
+  #side-panel h3 {
+    font-size: 0.65rem; color: #555; text-transform: uppercase;
+    letter-spacing: 2px; border-bottom: 1px solid #1a1a1a; padding-bottom: 5px;
+  }
+
+  /* Camera thumbnails */
+  #cam-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+  .cam-thumb {
+    background: #000; border: 1px solid #222; cursor: pointer;
+    position: relative; aspect-ratio: 4/3; overflow: hidden; transition: border-color 0.2s;
+  }
+  .cam-thumb:hover { border-color: var(--green); }
+  .cam-thumb.active { border-color: var(--green); box-shadow: 0 0 6px #00ff4155; }
+  .cam-thumb.alert  { border-color: var(--red); animation: pulse-border 0.4s infinite; }
+  .cam-thumb canvas { width: 100%; height: 100%; }
+  .cam-thumb-label {
+    position: absolute; bottom: 2px; left: 3px; font-size: 0.52rem;
+    color: var(--green); background: rgba(0,0,0,0.7); padding: 1px 3px;
+  }
+
+  /* Animatronic status */
+  #anim-status { display: flex; flex-direction: column; gap: 5px; }
+  .anim-row {
+    display: flex; align-items: center; gap: 6px;
+    background: #0a0f0a; border: 1px solid #1a1a1a; padding: 5px 7px; font-size: 0.65rem;
+  }
+  .anim-row .loc { color: #555; flex: 1; }
+  .anim-row .at-door { color: var(--red); animation: flicker 0.4s infinite; }
+
+  /* Log */
+  #log {
+    flex: 1; font-size: 0.6rem; overflow-y: auto;
+    display: flex; flex-direction: column-reverse; gap: 2px; max-height: 130px;
+  }
+  #log .entry      { color: #444; }
+  #log .entry.warn { color: var(--amber); }
+  #log .entry.danger { color: var(--red); }
+
+  /* ── END SCREENS ── */
+  #death-screen, #win-screen {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.96);
+    align-items: center; justify-content: center; flex-direction: column;
+    gap: 20px; z-index: 100; text-align: center;
+  }
+  #death-screen h2 {
+    font-family: 'Creepster', cursive; font-size: 4rem; color: var(--red);
+    text-shadow: 0 0 40px red; animation: flicker 0.5s infinite;
+  }
+  #win-screen h2 { font-family: 'Creepster', cursive; font-size: 4rem; color: var(--green); text-shadow: 0 0 40px var(--green); }
+  #death-img { font-size: 5rem; animation: shake 0.1s infinite; }
+
+  /* ── ANIMATIONS ── */
+  @keyframes flicker {
+    0%,100%{opacity:1} 48%{opacity:.8} 50%{opacity:.2} 52%{opacity:.9}
+  }
+  @keyframes shake {
+    0%,100%{transform:translate(0,0) rotate(0deg)}
+    25%{transform:translate(-4px,2px) rotate(-2deg)}
+    75%{transform:translate(4px,-2px) rotate(2deg)}
+  }
+  @keyframes pulse-border {
+    0%,100%{border-color:var(--red)} 50%{border-color:transparent}
+  }
+  @keyframes lurk {
+    0%{transform:translateX(-50%) scale(1)} 100%{transform:translateX(-50%) scale(1.05)}
+  }
+  @keyframes glitch {
+    0%{transform:translate(0,0)} 25%{transform:translate(-2px,1px)}
+    50%{transform:translate(2px,-1px)} 75%{transform:translate(-1px,2px)}
+  }
+</style>
+</head>
+<body>
+
+<!-- START -->
+<div id="start-screen">
+  <div style="font-size:3.5rem">🍕</div>
+  <h1>Five Nights at Peppy's</h1>
+  <p>You're the night guard at <strong>Peppy's Pizza Palace</strong>.<br><br>
+  Switch between the <strong>Camera Monitor</strong> to track animatronics and your <strong>Office View</strong> to check and close the doors. Survive until 6 AM.</p>
+  <div style="color:#555;font-size:0.75rem;margin-top:-8px">Use the [CAMERAS / OFFICE] button to switch views</div>
+  <button class="btn" onclick="startGame()">▶ START NIGHT 1</button>
+</div>
+
+<!-- GAME -->
+<div id="game-screen">
+  <!-- HUD -->
+  <div id="hud">
+    <div id="night-label">NIGHT 1 — PEPPY'S PIZZA PALACE</div>
+    <div id="clock">12:00 AM</div>
+    <div id="power-bar-wrap">
+      ⚡
+      <div id="power-bar"><div id="power-fill"></div></div>
+      <span id="power-pct">100%</span>
+    </div>
+  </div>
+
+  <div id="main-area">
+    <!-- Centre -->
+    <div id="centre-view">
+
+      <!-- OFFICE VIEW (default) -->
+      <div id="office-view">
+        <div id="office-scene">
+          <!-- Left door panel -->
+          <div class="door-panel" id="left-panel">
+            <div class="door-visual open" id="left-door-visual">
+              <div class="door-lurker" id="left-lurker">🐻</div>
+            </div>
+            <div class="door-light" id="left-light" onclick="checkLight('left')" title="Peek light"></div>
+            <button class="big-door-btn" id="left-door-btn" onclick="toggleDoor('left')">OPEN</button>
+          </div>
+
+          <!-- Desk -->
+          <div class="desk"><span class="desk-label">SECURITY DESK</span></div>
+
+          <!-- Right door panel -->
+          <div class="door-panel" id="right-panel">
+            <div class="door-visual open" id="right-door-visual">
+              <div class="door-lurker" id="right-lurker">🐱</div>
+            </div>
+            <div class="door-light" id="right-light" onclick="checkLight('right')" title="Peek light"></div>
+            <button class="big-door-btn" id="right-door-btn" onclick="toggleDoor('right')">OPEN</button>
+          </div>
+        </div>
+        <div id="office-scanlines"></div>
+      </div>
+
+      <!-- CAMERA VIEW (hidden until toggled) -->
+      <div id="cam-view">
+        <canvas id="cam-canvas"></canvas>
+        <div class="cam-overlay"></div>
+        <div id="cam-label">CAM 1 — MAIN STAGE</div>
+      </div>
+
+      <!-- Toggle button -->
+      <div id="view-toggle-wrap">
+        <button id="view-toggle-btn" onclick="toggleView()">📷 CAMERAS</button>
+      </div>
+    </div>
+
+    <!-- Side panel -->
+    <div id="side-panel">
+      <h3>📷 Camera Feed</h3>
+      <div id="cam-grid"></div>
+
+      <h3>🤖 Animatronics</h3>
+      <div id="anim-status"></div>
+
+      <h3>📋 Activity Log</h3>
+      <div id="log"></div>
+    </div>
+  </div>
+</div>
+
+<!-- DEATH -->
+<div id="death-screen">
+  <div id="death-img">😱</div>
+  <h2>YOU DIED</h2>
+  <p style="color:#666;font-family:'Share Tech Mono',monospace">An animatronic got inside...</p>
+  <button class="btn" onclick="location.reload()">TRY AGAIN</button>
+</div>
+
+<!-- WIN -->
+<div id="win-screen">
+  <div style="font-size:3.5rem">🌅</div>
+  <h2>6 AM — SURVIVED!</h2>
+  <p style="color:#aaa;font-family:'Share Tech Mono',monospace">You made it through the night. Barely.</p>
+  <button class="btn" onclick="location.reload()">PLAY AGAIN</button>
+</div>
+
+<script>
+// ═══════════════ CONFIG ═══════════════
+const HOURS        = ['12:00 AM','1:00 AM','2:00 AM','3:00 AM','4:00 AM','5:00 AM','6:00 AM'];
+const HOUR_MS      = 45000;
+const DRAIN_BASE   = 0.018;
+const DRAIN_DOOR   = 0.025;
+const DRAIN_CAM    = 0.006;
+
+const ROOMS = [
+  { id:'cam1', name:'Main Stage',  emoji:'🎪', color:'#001a00' },
+  { id:'cam2', name:'Party Room',  emoji:'🎉', color:'#001500' },
+  { id:'cam3', name:'Kitchen',     emoji:'🍕', color:'#0a0a00' },
+  { id:'cam4', name:'Left Hall',   emoji:'🚶', color:'#000d1a' },
+  { id:'cam5', name:'Right Hall',  emoji:'🚶', color:'#0d001a' },
+  { id:'cam6', name:'Supply Room', emoji:'📦', color:'#0a000a' },
+];
+
+const ANIMATRONICS = [
+  { name:'Peppy Bear', emoji:'🐻', color:'#ff4400', doorSide:'left',  aggression:0.55 },
+  { name:'Cheesy Cat', emoji:'🐱', color:'#ff00cc', doorSide:'right', aggression:0.40 },
+  { name:'Foxy Fox',   emoji:'🦊', color:'#ff6600', doorSide:'left',  aggression:0.30 },
+];
+
+// ═══════════════ STATE ═══════════════
+const PATHS = {
+  left:  [0, 1, 3],
+  right: [0, 2, 4],
+};
+
+let state = {
+  power: 100,
+  hour: 0, elapsed: 0, tick: 0,
+  alive: true, won: false,
+  camOpen: false,           // false = office view, true = camera monitor
+  doors: { left: false, right: false },
+  lights: { left: false, right: false },
+  currentCam: 0,
+  animatronics: ANIMATRONICS.map((a,i) => ({
+    ...a,
+    roomIdx: 0,
+    pathPos: 0,
+    atDoor: false,
+    moveTimer: (10 + i*6) * 1000,
+  })),
+};
+
+let gameInterval = null;
+let thumbCtxs    = [];
+let mainCtx      = null;
+
+// ═══════════════ START ═══════════════
+function startGame() {
+  document.getElementById('start-screen').style.display = 'none';
+  document.getElementById('game-screen').style.display  = 'flex';
+  buildCamGrid();
+  setupMainCanvas();
+  buildAnimStatus();
+  gameInterval = setInterval(gameTick, 100);
+  logMsg('Night shift started. Watch the doors.', 'warn');
+}
+
+function buildCamGrid() {
+  const grid = document.getElementById('cam-grid');
+  grid.innerHTML = ''; thumbCtxs = [];
+  ROOMS.forEach((room, i) => {
+    const div = document.createElement('div');
+    div.className = 'cam-thumb' + (i===0?' active':'');
+    div.onclick = () => selectCam(i);
+    div.id = 'thumb-' + i;
+    const canvas = document.createElement('canvas');
+    canvas.width = 80; canvas.height = 60;
+    thumbCtxs.push(canvas.getContext('2d'));
+    const lbl = document.createElement('div');
+    lbl.className = 'cam-thumb-label';
+    lbl.textContent = 'CAM'+(i+1);
+    div.appendChild(canvas); div.appendChild(lbl);
+    grid.appendChild(div);
+  });
+}
+
+function setupMainCanvas() {
+  const c = document.getElementById('cam-canvas');
+  c.width  = c.offsetWidth  || 640;
+  c.height = c.offsetHeight || 400;
+  mainCtx = c.getContext('2d');
+}
+
+function buildAnimStatus() {
+  const el = document.getElementById('anim-status');
+  el.innerHTML = '';
+  state.animatronics.forEach((a, i) => {
+    const row = document.createElement('div');
+    row.className = 'anim-row'; row.id = 'anim-row-'+i;
+    row.innerHTML = `<span>${a.emoji}</span><span>${a.name}</span><span class="loc" id="anim-loc-${i}">Main Stage</span>`;
+    el.appendChild(row);
+  });
+}
+
+// ═══════════════ TICK ═══════════════
+function gameTick() {
+  if (!state.alive || state.won) return;
+  state.elapsed += 100; state.tick++;
+
+  const newHour = Math.floor(state.elapsed / HOUR_MS);
+  if (newHour !== state.hour) {
+    state.hour = newHour;
+    if (state.hour >= 6) { winGame(); return; }
+    logMsg(HOURS[state.hour] + ' — They grow restless...', 'warn');
+    state.animatronics.forEach(a => { a.aggression = Math.min(1, a.aggression + 0.07); });
+  }
+  document.getElementById('clock').textContent = HOURS[state.hour];
+
+  // Power
+  let drain = DRAIN_BASE;
+  if (state.doors.left)  drain += DRAIN_DOOR;
+  if (state.doors.right) drain += DRAIN_DOOR;
+  if (state.camOpen)     drain += DRAIN_CAM;
+  state.power = Math.max(0, state.power - drain * 0.1);
+  updatePowerUI();
+
+  if (state.power <= 0 && (state.doors.left || state.doors.right)) {
+    state.doors.left = state.doors.right = false;
+    updateDoorUI(); updateOfficeView();
+    logMsg('POWER OUT — Doors unlocked!', 'danger');
+  }
+
+  // Animatronics
+  state.animatronics.forEach(a => {
+    a.moveTimer -= 100;
+    if (a.moveTimer <= 0) {
+      moveAnim(a);
+      a.moveTimer = Math.max(2500, (11000 - state.hour * 1200) * (1 - a.aggression * 0.25));
+    }
+  });
+
+  checkAttacks();
+  updateAnimStatus();
+  updateOfficeView();
+  drawThumbs();
+  if (state.camOpen) drawMainCam();
+}
+
+// ═══════════════ MOVEMENT ═══════════════
+function moveAnim(a) {
+  if (a.atDoor) return;
+  const path = PATHS[a.doorSide];
+
+  if (Math.random() < a.aggression) {
+    if (a.pathPos < path.length - 1) {
+      a.pathPos++;
+      a.roomIdx = path[a.pathPos];
+      flashThumb(a.roomIdx);
+    } else {
+      // Reached end of path — now at door
+      a.atDoor  = true;
+      a.roomIdx = -1;
+      flashDoorAlert(a.doorSide);
+      logMsg(`⚠ ${a.name} is at the ${a.doorSide.toUpperCase()} DOOR!`, 'danger');
+    }
+  } else if (Math.random() < 0.12 && a.pathPos > 0) {
+    a.pathPos--;
+    a.roomIdx = path[a.pathPos];
+  }
+}
+
+function flashThumb(roomIdx) {
+  const t = document.getElementById('thumb-'+roomIdx);
+  if (!t) return;
+  t.classList.add('alert');
+  setTimeout(() => t.classList.remove('alert'), 700);
+}
+
+function flashDoorAlert(side) {
+  const btn = document.getElementById(side+'-door-btn');
+  const orig = btn.style.animation;
+  btn.style.animation = 'pulse-border 0.3s infinite';
+  setTimeout(() => { btn.style.animation = orig; }, 4000);
+}
+
+// ═══════════════ ATTACKS ═══════════════
+let killPending = false;
+function checkAttacks() {
+  state.animatronics.forEach(a => {
+    if (!a.atDoor || killPending) return;
+    if (!state.doors[a.doorSide]) {
+      // Door open — they'll attack after a moment
+      killPending = true;
+      setTimeout(() => {
+        if (a.atDoor && !state.doors[a.doorSide]) killPlayer(a);
+        else killPending = false;
+      }, 1000);
+    } else {
+      // Door closed — retreat chance
+      if (Math.random() < 0.018) {
+        a.atDoor  = false;
+        a.pathPos = PATHS[a.doorSide].length - 1;
+        a.roomIdx = PATHS[a.doorSide][a.pathPos];
+        logMsg(`${a.name} retreated from the door.`);
+      }
+    }
+  });
+}
+
+// ═══════════════ OFFICE VIEW ═══════════════
+function updateOfficeView() {
+  ['left','right'].forEach(side => {
+    const atDoor = state.animatronics.some(a => a.atDoor && a.doorSide === side);
+    const lurker = document.getElementById(side+'-lurker');
+    const visual = document.getElementById(side+'-door-visual');
+    const light  = document.getElementById(side+'-light');
+
+    // Show lurker only if door open AND animatronic present
+    if (atDoor && !state.doors[side]) {
+      lurker.classList.add('visible');
+      lurker.textContent = state.animatronics.find(a=>a.atDoor&&a.doorSide===side)?.emoji || '👾';
+    } else {
+      lurker.classList.remove('visible');
+    }
+
+    // Door visual
+    visual.className = 'door-visual ' + (state.doors[side] ? 'closed' : 'open');
+
+    // Light colour: green = clear, red = something there
+    if (state.lights[side]) {
+      light.className = 'door-light ' + (atDoor ? 'on-red' : 'on-green');
+    } else {
+      light.className = 'door-light';
+    }
+  });
+}
+
+function checkLight(side) {
+  // Toggle the peek light for 1.5s
+  state.lights[side] = true;
+  updateOfficeView();
+  setTimeout(() => { state.lights[side] = false; updateOfficeView(); }, 1500);
+}
+
+// ═══════════════ VIEW TOGGLE ═══════════════
+function toggleView() {
+  state.camOpen = !state.camOpen;
+  document.getElementById('office-view').style.display = state.camOpen ? 'none'  : 'flex';
+  document.getElementById('cam-view').style.display    = state.camOpen ? 'block' : 'none';
+  document.getElementById('view-toggle-btn').textContent = state.camOpen ? '🔒 OFFICE' : '📷 CAMERAS';
+  if (state.camOpen) {
+    setupMainCanvas();
+    drawMainCam();
+  }
+}
+
+// ═══════════════ CAM DRAW ═══════════════
+function drawRoom(ctx, roomIdx, w, h, animHere) {
+  const room = ROOMS[roomIdx];
+  ctx.fillStyle = room.color; ctx.fillRect(0,0,w,h);
+  for (let y=0;y<h;y+=4){ ctx.fillStyle='rgba(0,0,0,0.1)'; ctx.fillRect(0,y,w,2); }
+  ctx.font=`${Math.min(w,h)*0.35}px serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.globalAlpha=0.2; ctx.fillText(room.emoji,w/2,h/2); ctx.globalAlpha=1;
+  animHere.forEach((a,i)=>{
+    ctx.font=`${Math.min(w,h)*0.3}px serif`;
+    ctx.globalAlpha=0.85+Math.sin(Date.now()/300)*0.12;
+    ctx.fillText(a.emoji,w/2+(i-0.5)*w*0.3,h*0.55);
+    ctx.globalAlpha=1;
+  });
+  if(Math.random()<0.04){ ctx.fillStyle='rgba(0,255,65,0.04)'; ctx.fillRect(0,Math.random()*h,w,2); }
+}
+
+function drawMainCam() {
+  if (!mainCtx) return;
+  const c=document.getElementById('cam-canvas'), w=c.width, h=c.height;
+  const ri=state.currentCam;
+  const here=state.animatronics.filter(a=>a.roomIdx===ri);
+  drawRoom(mainCtx,ri,w,h,here);
+  // Show lurker edge if at door and this is the hall cam
+  state.animatronics.filter(a=>a.atDoor).forEach(a=>{
+    if((a.doorSide==='left'&&ri===3)||(a.doorSide==='right'&&ri===4)){
+      mainCtx.font=`${h*0.22}px serif`; mainCtx.textAlign='center';
+      mainCtx.globalAlpha=0.88; mainCtx.fillText(a.emoji,w*0.87,h*0.55); mainCtx.globalAlpha=1;
+    }
+  });
+  document.getElementById('cam-label').textContent=`CAM ${ri+1} — ${ROOMS[ri].name.toUpperCase()}`;
+}
+
+function drawThumbs() {
+  thumbCtxs.forEach((ctx,i)=>{
+    const here=state.animatronics.filter(a=>a.roomIdx===i);
+    drawRoom(ctx,i,80,60,here);
+  });
+}
+
+function selectCam(i) {
+  state.currentCam=i;
+  document.querySelectorAll('.cam-thumb').forEach((el,j)=>el.classList.toggle('active',j===i));
+  if (state.camOpen) drawMainCam();
+}
+
+// ═══════════════ DOORS ═══════════════
+function toggleDoor(side) {
+  if (state.power<=0){ logMsg('No power — doors offline!','danger'); return; }
+  state.doors[side]=!state.doors[side];
+  updateDoorUI(); updateOfficeView();
+  logMsg(`${side.toUpperCase()} door ${state.doors[side]?'CLOSED':'opened'}.`, state.doors[side]?'warn':'');
+}
+
+function updateDoorUI() {
+  ['left','right'].forEach(side=>{
+    const btn=document.getElementById(side+'-door-btn');
+    if(state.doors[side]){ btn.textContent='CLOSED'; btn.classList.add('closed'); }
+    else { btn.textContent='OPEN'; btn.classList.remove('closed'); }
+  });
+}
+
+// ═══════════════ POWER ═══════════════
+function updatePowerUI() {
+  const pct=Math.max(0,Math.round(state.power));
+  document.getElementById('power-fill').style.width=pct+'%';
+  document.getElementById('power-fill').style.background=pct>50?'#00ff41':pct>25?'#ffb300':'#ff2020';
+  document.getElementById('power-pct').textContent=pct+'%';
+}
+
+// ═══════════════ ANIM STATUS ═══════════════
+function updateAnimStatus() {
+  state.animatronics.forEach((a,i)=>{
+    const loc=document.getElementById('anim-loc-'+i);
+    if(!loc) return;
+    if(a.atDoor){ loc.textContent='⚠ AT DOOR'; loc.className='loc at-door'; }
+    else { loc.textContent=ROOMS[a.roomIdx]?.name||'?'; loc.className='loc'; }
+  });
+}
+
+// ═══════════════ END STATES ═══════════════
+function killPlayer(a) {
+  if(!state.alive) return;
+  state.alive=false; killPending=false;
+  clearInterval(gameInterval);
+  document.getElementById('death-img').textContent=a.emoji;
+  document.getElementById('death-screen').style.display='flex';
+  document.body.style.background='#ff0000';
+  setTimeout(()=>{ document.body.style.background=''; },120);
+}
+
+function winGame() {
+  state.won=true; clearInterval(gameInterval);
+  document.getElementById('win-screen').style.display='flex';
+}
+
+// ═══════════════ LOG ═══════════════
+function logMsg(msg, type='') {
+  const log=document.getElementById('log');
+  const el=document.createElement('div');
+  el.className='entry '+type;
+  el.textContent=`[${HOURS[state.hour]||'12:00 AM'}] ${msg}`;
+  log.prepend(el);
+  while(log.children.length>25) log.removeChild(log.lastChild);
+}
+
+window.addEventListener('resize',()=>{
+  const c=document.getElementById('cam-canvas');
+  if(c&&state.camOpen){ c.width=c.offsetWidth; c.height=c.offsetHeight; mainCtx=c.getContext('2d'); }
+});
+</script>
+</body>
+</html>
