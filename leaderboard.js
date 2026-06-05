@@ -15,8 +15,8 @@
  */
 
 // ── Cloud config ─────────────────────────────────────────────────────────
-const JSONBIN_API_KEY = '$2a$10$.5buyHiWjed.ThInFE0U/OoAIs5g4OQwZK//lOdsgHqhhyDfJwSv2';
-const JSONBIN_BIN_ID  = 'REPLACE_WITH_YOUR_BIN_ID'; // set after first auto-create
+const JSONBIN_API_KEY = '$2a$10$bml7rUmOxvUmnVquNJagxenHRX3Aijn4RwZgaJrUbAeSgZ7RMDREW';
+const JSONBIN_BIN_ID  = '6a22774dda38895dfe8add8a';
 const CLOUD_ENABLED   = !JSONBIN_API_KEY.includes('REPLACE');
 // ─────────────────────────────────────────────────────────────────────────
 
