@@ -1,10 +1,105 @@
 /**
  * Finn's Arcade - Shared Leaderboard Utilities
- * Stores top 10 scores per game in localStorage.
+ * Stores top 10 scores per game in localStorage AND syncs to a shared
+ * cloud leaderboard via JSONBin.io so all players see the same scores.
+ *
+ * Cloud setup (one-time):
+ *   1. Create a free account at https://jsonbin.io
+ *   2. Go to API Keys → create a key, copy it
+ *   3. Replace JSONBIN_API_KEY below with your key
+ *   4. On first save a bin is auto-created and the ID stored in localStorage
+ *      under 'hs_cloud_bin_id' — note it down from the console and set
+ *      JSONBIN_BIN_ID below so all devices share the same bin.
+ *
+ * Without a key, the arcade works fine with local-only scores.
  */
+
+// ── Cloud config ─────────────────────────────────────────────────────────
+const JSONBIN_API_KEY = '$2a$10$REPLACE_WITH_YOUR_JSONBIN_API_KEY';
+const JSONBIN_BIN_ID  = 'REPLACE_WITH_YOUR_BIN_ID'; // set after first auto-create
+const CLOUD_ENABLED   = !JSONBIN_API_KEY.includes('REPLACE');
+// ─────────────────────────────────────────────────────────────────────────
 
 const HS = {
   MAX: 10,
+
+  // ── Cloud helpers ──────────────────────────────────────────────────────
+
+  /** Push all local scores to JSONBin (fire-and-forget). */
+  _cloudPush() {
+    if (!CLOUD_ENABLED) return;
+    try {
+      const all = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('hs_') && !k.startsWith('hs_cloud')) {
+          try { all[k.slice(3)] = JSON.parse(localStorage.getItem(k)); } catch {}
+        }
+      }
+      const binId = JSONBIN_BIN_ID !== 'REPLACE_WITH_YOUR_BIN_ID'
+        ? JSONBIN_BIN_ID
+        : localStorage.getItem('hs_cloud_bin_id');
+
+      if (binId) {
+        // Update existing bin
+        fetch(`https://api.jsonbin.io/v3/b/${binId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_API_KEY },
+          body: JSON.stringify(all)
+        }).catch(() => {});
+      } else {
+        // Create bin on first push
+        fetch('https://api.jsonbin.io/v3/b', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Master-Key': JSONBIN_API_KEY,
+            'X-Bin-Name': "Finn's Arcade Leaderboard",
+            'X-Bin-Private': 'false'
+          },
+          body: JSON.stringify(all)
+        }).then(r => r.json()).then(d => {
+          if (d.metadata && d.metadata.id) {
+            localStorage.setItem('hs_cloud_bin_id', d.metadata.id);
+            console.log('✅ Leaderboard bin created! ID:', d.metadata.id,
+              '\nPaste this into JSONBIN_BIN_ID in leaderboard.js so all devices sync.');
+          }
+        }).catch(() => {});
+      }
+    } catch {}
+  },
+
+  /**
+   * Pull cloud scores and merge into localStorage (cloud wins ties with higher score).
+   * Returns a Promise that resolves when done (or immediately if cloud disabled).
+   */
+  _cloudPull() {
+    if (!CLOUD_ENABLED) return Promise.resolve();
+    const binId = JSONBIN_BIN_ID !== 'REPLACE_WITH_YOUR_BIN_ID'
+      ? JSONBIN_BIN_ID
+      : localStorage.getItem('hs_cloud_bin_id');
+    if (!binId) return Promise.resolve();
+    return fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, {
+      headers: { 'X-Master-Key': JSONBIN_API_KEY, 'X-Bin-Meta': 'false' }
+    })
+    .then(r => r.json())
+    .then(cloud => {
+      // cloud is an object: { gameKey: [{n,s}, ...], ... }
+      if (!cloud || typeof cloud !== 'object') return;
+      Object.keys(cloud).forEach(key => {
+        const remote = Array.isArray(cloud[key]) ? cloud[key] : [];
+        if (!remote.length) return;
+        const local  = this.get(key);
+        // Merge: combine both lists, deduplicate by n+s, keep top MAX
+        const merged = [...local, ...remote]
+          .filter((e, i, arr) => arr.findIndex(x => x.n === e.n && x.s === e.s) === i)
+          .sort((a, b) => b.s - a.s)
+          .slice(0, this.MAX);
+        try { localStorage.setItem('hs_' + key, JSON.stringify(merged)); } catch {}
+      });
+    })
+    .catch(() => {});
+  },
 
   /** Auto-inject a fixed in-game Home button when the DOM is ready. */
   _injectHomeBtn() {
@@ -54,6 +149,8 @@ const HS = {
     list.sort((a, b) => b.s - a.s);
     if (list.length > this.MAX) list.length = this.MAX;
     try { localStorage.setItem('hs_' + key, JSON.stringify(list)); } catch {}
+    // Push all scores to cloud
+    this._cloudPush();
     return list;
   },
 

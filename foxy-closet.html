@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Hide from Nightmare Foxy!</title>
+<script src="leaderboard.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Creepster&family=Orbitron:wght@700;900&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:#000;overflow:hidden;touch-action:none;user-select:none;font-family:'Creepster',cursive;}
+  canvas{display:block;}
+  #ui{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:7px 14px;z-index:10;pointer-events:none;background:linear-gradient(180deg,rgba(0,0,0,0.9),transparent);}
+  .pill{background:rgba(0,0,0,0.75);border-radius:20px;padding:4px 13px;font-size:0.82rem;}
+  #score-txt{color:#ff6644;border:1.5px solid #ff664444;}
+  #night-txt{color:#ffcc44;border:1.5px solid #ffcc4444;font-family:'Orbitron',monospace;font-size:0.68rem;}
+  #lives-txt{color:#ff8888;border:1.5px solid #ff888844;}
+  #clock-txt{position:fixed;top:46px;left:50%;transform:translateX(-50%);font-family:'Orbitron',monospace;font-size:1rem;color:#aaddff;text-shadow:0 0 8px #4488ff;pointer-events:none;z-index:10;}
+  #night-bar-wrap{position:fixed;bottom:4px;left:50%;transform:translateX(-50%);width:55%;pointer-events:none;z-index:10;}
+  #night-bar-bg{height:5px;background:rgba(255,255,255,0.07);border-radius:3px;overflow:hidden;}
+  #night-bar{height:100%;background:linear-gradient(90deg,#661100,#ff6644);border-radius:3px;}
+
+  /* Buttons */
+  #btn-hide{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);width:110px;height:80px;border-radius:16px;background:rgba(0,0,0,0.7);border:3px solid #ff6644;color:#ff6644;display:flex;align-items:center;justify-content:center;flex-direction:column;z-index:15;cursor:pointer;pointer-events:all;-webkit-tap-highlight-color:transparent;font-family:'Orbitron',monospace;font-size:0.52rem;gap:3px;letter-spacing:1px;}
+  #btn-hide.hiding{background:rgba(80,20,0,0.5);border-color:#ff8844;box-shadow:0 0 20px #ff664466;}
+  #btn-peek{position:fixed;top:80px;left:14px;width:78px;height:78px;border-radius:50%;background:rgba(0,0,0,0.7);border:2px solid #ffcc44;color:#ffcc44;display:flex;align-items:center;justify-content:center;flex-direction:column;z-index:15;cursor:pointer;pointer-events:all;-webkit-tap-highlight-color:transparent;font-family:'Orbitron',monospace;font-size:0.48rem;gap:2px;}
+  #btn-peek.peeking{background:rgba(60,50,0,0.5);border-color:#ffee44;box-shadow:0 0 12px #ffcc4466;}
+  #btn-breath{position:fixed;top:80px;right:14px;width:78px;height:78px;border-radius:50%;background:rgba(0,0,0,0.7);border:2px solid #88ccff;color:#88ccff;display:flex;align-items:center;justify-content:center;flex-direction:column;z-index:15;cursor:pointer;pointer-events:all;-webkit-tap-highlight-color:transparent;font-family:'Orbitron',monospace;font-size:0.48rem;gap:2px;}
+  #btn-breath.holding{background:rgba(0,30,60,0.6);border-color:#aaddff;box-shadow:0 0 14px #88ccff66;}
+  #btn-flash{position:fixed;bottom:24px;right:20px;width:78px;height:78px;border-radius:50%;background:rgba(0,0,0,0.7);border:2px solid #aaddff;color:#aaddff;display:flex;align-items:center;justify-content:center;flex-direction:column;z-index:15;cursor:pointer;pointer-events:all;-webkit-tap-highlight-color:transparent;font-family:'Orbitron',monospace;font-size:0.48rem;gap:2px;}
+  #btn-flash.empty{border-color:#333;background:#111;}
+  #flash-bar{position:fixed;bottom:110px;right:20px;width:78px;height:7px;background:rgba(170,220,255,0.1);border-radius:3px;border:1px solid #aaddff33;overflow:hidden;pointer-events:none;z-index:10;}
+  #flash-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,#446688,#aaddff);}
+
+  #msg{position:fixed;top:36%;left:50%;transform:translate(-50%,-50%);font-size:1.7rem;color:#ff6644;text-shadow:0 0 20px #ff2200;white-space:pre-line;pointer-events:none;opacity:0;transition:opacity 0.3s;z-index:20;text-align:center;background:rgba(0,0,0,0.72);padding:10px 22px;border-radius:12px;}
+  #jumpscare{position:fixed;inset:0;z-index:50;display:none;background:#000;align-items:center;justify-content:center;}
+  #overlay{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,5,0.97);}
+  #overlay h1{font-size:clamp(1.8rem,6vw,3rem);color:#ff4400;text-shadow:0 0 30px #ff2200;letter-spacing:2px;text-align:center;margin-bottom:8px;}
+  #overlay p{color:#666;font-size:0.85rem;margin:3px 0;text-align:center;}
+  .btn{margin-top:20px;padding:12px 40px;font-size:1.6rem;color:#ff6644;border:2px solid #ff6644;background:transparent;border-radius:4px;cursor:pointer;box-shadow:0 0 20px #ff664433;}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <div class="pill" id="score-txt">⭐ 0</div>
+  <div class="pill" id="night-txt">NIGHT 1</div>
+  <div class="pill" id="lives-txt">❤️❤️❤️</div>
+</div>
+<div id="clock-txt">12:00 AM</div>
+<div id="night-bar-wrap"><div id="night-bar-bg"><div id="night-bar" style="width:0%"></div></div></div>
+<div id="flash-bar"><div id="flash-fill" style="width:100%"></div></div>
+
+<div id="btn-peek"><span style="font-size:1.5rem">👁️</span><span id="peek-label">PEEK</span></div>
+<div id="btn-breath"><span style="font-size:1.5rem">🤐</span><span id="breath-label">HOLD<br>BREATH</span></div>
+<div id="btn-hide"><span style="font-size:2rem" id="hide-icon">🚪</span><span id="hide-label">HIDE IN<br>CLOSET</span></div>
+<div id="btn-flash"><span style="font-size:1.5rem">🔦</span><span>FLASH</span></div>
+
+<div id="msg"></div>
+<div id="jumpscare"></div>
+
+<div id="overlay">
+  <h1>🦊 NIGHTMARE FOXY<br>IS HUNTING YOU!</h1>
+  <p style="color:#ff8844;font-size:0.92rem;margin-bottom:6px;">You're trapped in the FNAF 4 bedroom — survive 5 nights!</p>
+  <p style="color:#ffcc44;font-weight:900;">🚪 Hide in the closet when Foxy charges!</p>
+  <p style="color:#aaddff;">🔦 Flash the hall to check where he is</p>
+  <p style="color:#ffcc44;">👁️ Peek through the closet hole to spy on him</p>
+  <p style="color:#88ccff;">🤐 Hold breath so he can't hear you in the closet</p>
+  <p style="color:#ff4444;font-weight:900;margin-top:4px;">⚠️ You can leave the closet — but Foxy will find you faster!</p>
+  <p style="color:#444;margin-top:8px;font-size:0.75rem;">Survive 12 AM → 6 AM each night!</p>
+  <button class="btn" id="startBtn">▶ GOOD LUCK...</button>
+</div>
+
+<script>
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+let W,H;
+function resize(){W=window.innerWidth;H=window.innerHeight;canvas.width=W;canvas.height=H;}
+resize();window.addEventListener('resize',resize);
+
+// ── AUDIO ──────────────────────────────────────────────────────────────────
+let ac=null;
+function ea(){if(!ac)ac=new(window.AudioContext||window.webkitAudioContext)();if(ac.state==='suspended')ac.resume();}
+function beep(f,t,d,v=0.2,s=null){try{ea();const o=ac.createOscillator(),g=ac.createGain();o.type=t;o.frequency.setValueAtTime(f,ac.currentTime);if(s)o.frequency.exponentialRampToValueAtTime(s,ac.currentTime+d);g.gain.setValueAtTime(v,ac.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+d);o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+d+0.01);}catch(e){}}
+function playDoor(){beep(150,'square',0.18,0.28,80);}
+function playFlash(){beep(800,'square',0.05,0.12,300);}
+function playCreak(){beep(55+Math.random()*30,'square',0.3,0.16,38);}
+function playRun(){try{ea();for(let i=0;i<4;i++)setTimeout(()=>beep(60+i*15,'square',0.07,0.18,35),i*70);}catch(e){}}
+function playScream(){try{ea();const o=ac.createOscillator(),g=ac.createGain();o.type='sawtooth';o.frequency.setValueAtTime(180,ac.currentTime);o.frequency.exponentialRampToValueAtTime(40,ac.currentTime+1.6);g.gain.setValueAtTime(0.8,ac.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+2.2);o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+2.5);}catch(e){}}
+function playSurvive(){[523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,'sine',0.15,0.25),i*80));}
+
+// ── STATE ──────────────────────────────────────────────────────────────────
+const NIGHT_DURATION=360;
+let score=0,lives=3,night=1,running=false;
+let nightTime=0,msgTimer=null,bobTime=0;
+let flashOn=false,flashCharge=1.0;
+let scoreTimer=0,creakTimer=0;
+
+// Player
+let inCloset=true;      // start in closet
+let peeking=false;      // peeking through hole in closet
+let holdingBreath=false;
+let closetDoor=1.0;     // 1=fully closed 0=open
+
+// Foxy
+let foxyPos=0;          // 0=far end of hall  1=at bedroom door
+let foxyState='lurk';   // lurk | approach | atdoor | retreat
+let foxyStateTimer=0;
+let foxyBaseSpeed=0;
+
+function getLurkTime(n){ return Math.max(4,16-n*2)+Math.random()*5; }
+
+function startNight(n){
+  night=n; nightTime=0; flashCharge=1.0; flashOn=false;
+  foxyPos=0; foxyState='lurk'; foxyStateTimer=getLurkTime(n);
+  foxyBaseSpeed=0.12+n*0.06;
+  inCloset=true; peeking=false; holdingBreath=false; closetDoor=1.0;
+  scoreTimer=0; creakTimer=0;
+  updateUI();
+  showMsg('Night '+n+' — Survive until 6 AM!');
+}
+
+// ── CONTROLS ──────────────────────────────────────────────────────────────
+const keys={};
+window.addEventListener('keydown',e=>{
+  if(e.key==='h'||e.key==='H') toggleHide();
+  if(e.key==='f'||e.key==='F') toggleFlash();
+  if(e.key==='b'||e.key==='B') holdingBreath=true;
+  if(e.key==='p'||e.key==='P') peeking=true;
+});
+window.addEventListener('keyup',e=>{
+  if(e.key==='b'||e.key==='B') holdingBreath=false;
+  if(e.key==='p'||e.key==='P') peeking=false;
+});
+
+function setupBtn(id,onDown,onUp){
+  const el=document.getElementById(id);
+  el.addEventListener('touchstart',e=>{e.preventDefault();ea();onDown&&onDown();});
+  el.addEventListener('touchend',  e=>{e.preventDefault();onUp&&onUp();});
+  el.addEventListener('mousedown', ()=>{ea();onDown&&onDown();});
+  el.addEventListener('mouseup',   ()=>onUp&&onUp());
+}
+setupBtn('btn-hide',toggleHide,null);
+setupBtn('btn-flash',toggleFlash,null);
+setupBtn('btn-peek',()=>peeking=true,()=>peeking=false);
+setupBtn('btn-breath',()=>holdingBreath=true,()=>holdingBreath=false);
+
+function toggleHide(){
+  if(!running)return;
+  inCloset=!inCloset;
+  playDoor();
+  if(inCloset){
+    closetDoor=0; // door starts open, animate shut
+    showMsg('🚪 In the closet!\nClose it quick!');
+  } else {
+    closetDoor=0;
+    peeking=false;
+    showMsg('You crept out...\nStay low!');
+  }
+}
+function toggleFlash(){
+  if(!running||flashCharge<=0)return;
+  flashOn=!flashOn;
+  if(flashOn) playFlash();
+}
+
+// ── UPDATE ────────────────────────────────────────────────────────────────
+let lastTime=0;
+function update(dt){
+  if(!running)return;
+  bobTime+=dt; nightTime+=dt;
+  updateClock();
+  if(nightTime>=NIGHT_DURATION){running=false;score+=500*night;playSurvive();endGame(true);return;}
+  document.getElementById('night-bar').style.width=(nightTime/NIGHT_DURATION*100)+'%';
+
+  // Flashlight
+  if(flashOn){flashCharge=Math.max(0,flashCharge-dt*0.14);if(flashCharge<=0)flashOn=false;}
+  else flashCharge=Math.min(1,flashCharge+dt*0.07);
+  document.getElementById('flash-fill').style.width=(flashCharge*100)+'%';
+  document.getElementById('btn-flash').className=flashCharge<0.05?'empty':'';
+
+  // Closet door auto-closes when inside
+  if(inCloset) closetDoor=Math.min(1,closetDoor+dt*2.5);
+  else closetDoor=Math.max(0,closetDoor-dt*3);
+
+  // Creak sounds
+  creakTimer=Math.max(0,creakTimer-dt);
+  if(foxyPos>0.25&&creakTimer<=0&&foxyState!=='lurk'){
+    creakTimer=(1.2-foxyPos)*1.5+0.3+Math.random()*0.8;
+    playCreak();
+  }
+
+  // ── FOXY AI ────────────────────────────────────────────────────────────
+  foxyStateTimer-=dt;
+
+  // Speed modifier — Foxy moves faster if player is OUT of closet
+  const exposed=!inCloset;
+  const speedMult=exposed?2.2:holdingBreath?0.7:1.0;
+
+  if(foxyState==='lurk'){
+    foxyPos=Math.max(0,foxyPos-dt*0.04);
+    if(foxyStateTimer<=0){
+      foxyState='approach';
+      showMsg('🦊 FOXY IS COMING!\n'+(inCloset?'Hold tight!':'GET IN THE CLOSET!'));
+      playRun();
+    }
+    // If player is out of closet, Foxy gets attracted sooner
+    if(exposed&&foxyStateTimer>3) foxyStateTimer=Math.max(1,foxyStateTimer-dt*3);
+  }
+  else if(foxyState==='approach'){
+    foxyPos=Math.min(1,foxyPos+foxyBaseSpeed*speedMult*dt);
+    if(foxyPos>=1){
+      foxyState='atdoor';
+      foxyStateTimer=inCloset&&closetDoor>0.6?4+Math.random()*3:0.4;
+      if(!inCloset){doJumpScare();return;}
+      showMsg('🦊 AT THE DOOR!\nDon\'t breathe...');
+    }
+  }
+  else if(foxyState==='atdoor'){
+    foxyPos=1;
+    if(!inCloset){doJumpScare();return;}
+    if(closetDoor<0.5){doJumpScare();return;}
+    // Peeking while door is ajar — risky
+    if(peeking&&Math.random()<dt*(holdingBreath?0.1:0.4)){doJumpScare();return;}
+    // Not holding breath — might hear you
+    if(!holdingBreath&&Math.random()<dt*0.06) showMsg('😮‍💨 He hears you breathe!\nHOLD BREATH!');
+    if(foxyStateTimer<=0){
+      foxyState='retreat';
+      foxyStateTimer=2.5+Math.random()*2;
+      showMsg('😮‍💨 He\'s leaving...');
+    }
+  }
+  else if(foxyState==='retreat'){
+    foxyPos=Math.max(0,foxyPos-foxyBaseSpeed*1.8*dt);
+    if(foxyStateTimer<=0){
+      foxyState='lurk';
+      foxyStateTimer=getLurkTime(night);
+      showMsg('✅ Foxy retreated!');
+    }
+  }
+
+  // Score
+  scoreTimer+=dt;
+  if(scoreTimer>=5){scoreTimer=0;score+=night*(inCloset?3:6);updateUI();}
+
+  // Button UI
+  document.getElementById('btn-hide').className=inCloset?'hiding':'';
+  document.getElementById('hide-icon').textContent=inCloset?'🫣':'🚪';
+  document.getElementById('hide-label').textContent=inCloset?'GET OUT':'HIDE IN\nCLOSET';
+  document.getElementById('btn-peek').className=(peeking&&inCloset)?'peeking':'';
+  document.getElementById('btn-breath').className=holdingBreath?'holding':'';
+  document.getElementById('breath-label').textContent=holdingBreath?'HOLDING!':'HOLD\nBREATH';
+}
+
+// ── JUMPSCARE ─────────────────────────────────────────────────────────────
+function doJumpScare(){
+  running=false;playScream();
+  const js=document.getElementById('jumpscare');js.style.display='flex';
+  const jsc=document.createElement('canvas');jsc.width=W;jsc.height=H;js.appendChild(jsc);
+  const jCtx=jsc.getContext('2d');
+  jCtx.fillStyle='#ff4400';jCtx.fillRect(0,0,W,H);
+  setTimeout(()=>{
+    jCtx.fillStyle='#000';jCtx.fillRect(0,0,W,H);
+    drawFoxyFace(jCtx,W/2,H/2,Math.min(W,H)*0.65);
+    setTimeout(()=>{
+      js.style.display='none';js.innerHTML='';
+      lives=Math.max(0,lives-1);
+      if(lives<=0){endGame(false);return;}
+      // Reset
+      foxyPos=0;foxyState='lurk';foxyStateTimer=getLurkTime(night);
+      inCloset=true;closetDoor=0;peeking=false;holdingBreath=false;
+      showMsg('💀 FOXY GOT YOU!\n'+lives+' ❤️ left');
+      updateUI();running=true;
+    },2200);
+  },160);
+}
+
+// ── DRAW ──────────────────────────────────────────────────────────────────
+function draw(){
+  const W2=W,H2=H;
+  if(inCloset) drawClosetView(W2,H2);
+  else drawBedroomView(W2,H2);
+
+  // Danger vignette
+  const danger=foxyState==='atdoor'?0.85:foxyPos*0.55+(inCloset?0:0.2);
+  const vig=ctx.createRadialGradient(W2/2,H2/2,H2*0.15,W2/2,H2/2,H2*0.9);
+  vig.addColorStop(0,'rgba(0,0,0,0)');
+  vig.addColorStop(1,`rgba(${Math.floor(danger*140)},${Math.floor(danger*15)},0,${0.35+danger*0.45})`);
+  ctx.fillStyle=vig;ctx.fillRect(0,0,W2,H2);
+
+  // Heartbeat flash
+  if(foxyPos>0.65&&Math.sin(bobTime*7)>0.88){
+    ctx.fillStyle=`rgba(255,40,0,${(foxyPos-0.65)*0.35})`;
+    ctx.fillRect(0,0,W2,H2);
+  }
+
+  // Out of closet warning
+  if(!inCloset){
+    const p=Math.sin(bobTime*4)*0.4+0.6;
+    ctx.strokeStyle=`rgba(255,80,0,${p*0.5})`;ctx.lineWidth=6;
+    ctx.strokeRect(3,3,W2-6,H2-6);
+  }
+
+  drawMinimap(W2,H2);
+}
+
+// ── BEDROOM VIEW ──────────────────────────────────────────────────────────
+function drawBedroomView(W2,H2){
+  // Dark bedroom bg
+  ctx.fillStyle='#050208';ctx.fillRect(0,0,W2,H2);
+
+  // Floor
+  const fG=ctx.createLinearGradient(0,H2*0.68,0,H2);
+  fG.addColorStop(0,'#120a08');fG.addColorStop(1,'#060404');
+  ctx.fillStyle=fG;ctx.fillRect(0,H2*0.68,W2,H2*0.32);
+  ctx.strokeStyle='rgba(80,40,20,0.1)';ctx.lineWidth=1;
+  for(let x=0;x<W2;x+=44){ctx.beginPath();ctx.moveTo(x,H2*0.68);ctx.lineTo(x,H2);ctx.stroke();}
+
+  // Ceiling
+  ctx.fillStyle='#040106';ctx.fillRect(0,0,W2,H2*0.09);
+
+  // Bed (right)
+  ctx.fillStyle='#18100a';ctx.fillRect(W2*0.54,H2*0.44,W2*0.43,H2*0.28);
+  ctx.fillStyle='#221508';ctx.fillRect(W2*0.54,H2*0.41,W2*0.43,H2*0.055);
+  ctx.fillStyle='#1e1208';ctx.fillRect(W2*0.56,H2*0.47,W2*0.39,H2*0.22);
+  ctx.fillStyle='#2a1a12';ctx.beginPath();ctx.roundRect(W2*0.59,H2*0.49,W2*0.14,H2*0.1,8);ctx.fill();
+
+  // Wardrobe (left)
+  ctx.fillStyle='#140a05';ctx.fillRect(W2*0.02,H2*0.14,W2*0.17,H2*0.56);
+  ctx.strokeStyle='rgba(80,40,12,0.45)';ctx.lineWidth=2;ctx.strokeRect(W2*0.02,H2*0.14,W2*0.17,H2*0.56);
+  ctx.beginPath();ctx.moveTo(W2*0.105,H2*0.14);ctx.lineTo(W2*0.105,H2*0.7);ctx.stroke();
+  ctx.fillStyle='rgba(120,70,30,0.5)';
+  ctx.beginPath();ctx.arc(W2*0.082,H2*0.43,5,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(W2*0.128,H2*0.43,5,0,Math.PI*2);ctx.fill();
+
+  // CLOSET (right of wardrobe) — player came from here
+  ctx.fillStyle='rgba(20,10,5,0.7)';
+  ctx.fillRect(W2*0.21,H2*0.42,W2*0.14,H2*0.3);
+  ctx.strokeStyle='rgba(100,50,20,0.4)';ctx.lineWidth=1.5;
+  ctx.strokeRect(W2*0.21,H2*0.42,W2*0.14,H2*0.3);
+  ctx.fillStyle='rgba(100,50,20,0.3)';
+  ctx.font=`${H2*0.05}px serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('🚪',W2*0.28,H2*0.57);
+
+  // Toy on shelf
+  ctx.fillStyle='rgba(200,150,100,0.4)';
+  ctx.font=`${H2*0.055}px serif`;ctx.textAlign='center';
+  ctx.fillText('🧸',W2*0.44,H2*0.22);
+
+  // Hall door (centre) where Foxy comes from
+  drawHallDoor(W2,H2);
+
+  // Child arms
+  drawChildArms(W2,H2);
+}
+
+function drawHallDoor(W2,H2){
+  const dX=W2*0.3,dY=H2*0.1,dW=W2*0.26,dH=H2*0.62;
+  ctx.strokeStyle='rgba(60,30,10,0.7)';ctx.lineWidth=8;ctx.strokeRect(dX,dY,dW,dH);
+
+  if(flashOn||foxyPos>0.4){
+    // Hallway visible
+    const hG=ctx.createLinearGradient(dX,0,dX+dW,0);
+    hG.addColorStop(0,'#040108');hG.addColorStop(0.5,'#060210');hG.addColorStop(1,'#040108');
+    ctx.fillStyle=hG;ctx.fillRect(dX,dY,dW,dH);
+    ctx.strokeStyle='rgba(50,20,70,0.18)';ctx.lineWidth=1;
+    for(let d=1;d<=4;d++){const s=d/5;ctx.strokeRect(dX+dW*s*0.3,dY+dH*s*0.2,dW*(1-s*0.6),dH*(1-s*0.4));}
+    // Foxy
+    if(foxyPos>0.05||(flashOn&&foxyPos>0)){
+      const vis=flashOn?Math.max(foxyPos,0.18):foxyPos;
+      const sz=vis*(dH*0.88);
+      if(sz>8) drawFoxyInHall(dX+dW/2,dY+dH*0.55,sz,vis);
+    }
+  } else {
+    ctx.fillStyle='#000';ctx.fillRect(dX,dY,dW,dH);
+    // Glowing eyes in dark
+    if(foxyPos>0.35){
+      const a=(foxyPos-0.35)/0.65;
+      const es=foxyPos*14+3;
+      ctx.shadowColor='#ff4400';ctx.shadowBlur=22*a;
+      ctx.fillStyle=`rgba(255,80,0,${a*0.88})`;
+      ctx.beginPath();ctx.ellipse(dX+dW*0.37,dY+dH*0.44,es,es*1.1,0,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.ellipse(dX+dW*0.63,dY+dH*0.44,es,es*1.1,0,0,Math.PI*2);ctx.fill();
+      ctx.shadowBlur=0;
+    }
+  }
+  ctx.strokeStyle='rgba(70,35,12,0.55)';ctx.lineWidth=3;ctx.strokeRect(dX,dY,dW,dH);
+  if(!flashOn&&foxyPos<0.35){
+    ctx.fillStyle='rgba(170,200,255,0.28)';
+    ctx.font=`bold ${Math.min(10,W2*0.018)}px Orbitron,monospace`;
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('🔦 FLASH TO SEE',dX+dW/2,dY+dH+16);
+  }
+}
+
+// ── CLOSET VIEW ───────────────────────────────────────────────────────────
+function drawClosetView(W2,H2){
+  // Wood interior
+  const bg=ctx.createLinearGradient(0,0,0,H2);
+  bg.addColorStop(0,'#070404');bg.addColorStop(1,'#030202');
+  ctx.fillStyle=bg;ctx.fillRect(0,0,W2,H2);
+  ctx.strokeStyle='rgba(55,30,12,0.5)';ctx.lineWidth=2;
+  for(let x=0;x<W2;x+=32){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H2);ctx.stroke();}
+  ctx.strokeStyle='rgba(45,22,8,0.18)';ctx.lineWidth=0.5;
+  for(let y=0;y<H2;y+=18){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W2,y);ctx.stroke();}
+
+  // Clothes hanging
+  for(let i=0;i<5;i++){
+    const cx2=W2*(0.12+i*0.18);
+    ctx.strokeStyle='rgba(80,50,25,0.4)';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(cx2,0);ctx.lineTo(cx2,H2*0.12);ctx.stroke();
+    ctx.font=`${H2*0.12}px serif`;ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.globalAlpha=0.3;ctx.fillText(['👕','👗','🧥','👔','🩱'][i],cx2-10,H2*0.1);ctx.globalAlpha=1;
+  }
+
+  // ── ONE-WAY MIRROR DOOR ──────────────────────────────────────────────────
+  // The door is a full mirror — but from inside you can see RIGHT through it.
+  // Step 1: Draw the bedroom scene BEHIND the door (full width, tinted dark)
+  ctx.save();
+  ctx.globalAlpha=0.9;
+  drawBedroomView(W2,H2);
+  // Draw Foxy in the hall visible through the mirror
+  if(foxyPos>0.05||(flashOn&&foxyPos>=0)){
+    const vis=flashOn?Math.max(foxyPos,0.15):foxyPos;
+    const dX=W2*0.3,dY=H2*0.1,dW=W2*0.26,dH=H2*0.62;
+    const sz=vis*(dH*0.88);
+    if(sz>8){
+      ctx.save();
+      ctx.beginPath();ctx.rect(dX,dY,dW,dH);ctx.clip();
+      drawFoxyInHall(dX+dW/2,dY+dH*0.55,sz,vis);
+      ctx.restore();
+    }
+  }
+  // Foxy face pressed against the glass when at door
+  if(foxyState==='atdoor'){
+    const a=(0.4+Math.sin(bobTime*4)*0.25)*closetDoor;
+    ctx.save();ctx.globalAlpha=a;
+    drawFoxyFace(ctx,W2*0.43,H2*0.42,Math.min(W2*0.22,H2*0.38));
+    ctx.restore();
+  }
+  ctx.restore();
+
+  // Step 2: Draw the door panels ON TOP as semi-transparent mirror glass
+  const panelW=W2/2*closetDoor;
+  for(const[ox,dir]of[[0,1],[W2,-1]]){
+    const pw=panelW;
+    if(pw<1)continue;
+    const x2=dir>0?ox:ox-pw;
+
+    // Wood frame edges (thin strip at outer edge)
+    ctx.fillStyle=dir>0?'#2a1808':'#1a0e04';
+    ctx.fillRect(x2,0,Math.min(pw,14),H2);
+    ctx.fillStyle=dir>0?'#1a0e04':'#2a1808';
+    ctx.fillRect(dir>0?x2+pw-14:x2,0,14,H2);
+
+    // Mirror glass panel — dark tinted, reflective
+    const glassX=dir>0?x2+14:x2;
+    const glassW=pw-14;
+    if(glassW<1)continue;
+
+    // The glass itself — dark tint so it's hard to see through from outside
+    ctx.save();
+    ctx.globalAlpha=0.55;
+    const mg=ctx.createLinearGradient(glassX,0,glassX+glassW,0);
+    mg.addColorStop(0,dir>0?'rgba(20,30,25,0.9)':'rgba(10,15,12,0.9)');
+    mg.addColorStop(0.4,'rgba(15,22,18,0.75)');
+    mg.addColorStop(1,dir>0?'rgba(10,15,12,0.9)':'rgba(20,30,25,0.9)');
+    ctx.fillStyle=mg;ctx.fillRect(glassX,0,glassW,H2);
+    ctx.restore();
+
+    // Mirror surface shimmer — diagonal light streaks
+    ctx.save();ctx.globalAlpha=0.12;
+    ctx.strokeStyle='rgba(200,255,220,1)';ctx.lineWidth=glassW*0.3;
+    const shimX=glassX+glassW*(dir>0?0.25:0.65);
+    ctx.beginPath();ctx.moveTo(shimX,0);ctx.lineTo(shimX+H2*0.15,H2);ctx.stroke();
+    ctx.lineWidth=glassW*0.1;
+    ctx.beginPath();ctx.moveTo(shimX+glassW*0.4,0);ctx.lineTo(shimX+glassW*0.4+H2*0.1,H2);ctx.stroke();
+    ctx.restore();
+
+    // Glass edge highlight
+    ctx.strokeStyle='rgba(150,220,180,0.25)';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(glassX,0);ctx.lineTo(glassX,H2);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(glassX+glassW,0);ctx.lineTo(glassX+glassW,H2);ctx.stroke();
+
+    // Door handle
+    if(pw>30){
+      ctx.fillStyle='#886633';
+      ctx.beginPath();ctx.ellipse(dir>0?x2+pw-8:x2+8,H2/2,5,14,0,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='rgba(200,160,80,0.6)';
+      ctx.beginPath();ctx.ellipse(dir>0?x2+pw-8:x2+8,H2/2,3,9,0,0,Math.PI*2);ctx.fill();
+    }
+  }
+
+  // Gap between panels (centre seam)
+  const gap=W2-panelW*2;
+  if(gap>2){
+    ctx.fillStyle='rgba(0,0,0,0.8)';
+    ctx.fillRect(panelW,0,gap,H2);
+  }
+
+  // "ONE-WAY GLASS" label
+  if(closetDoor>0.5){
+    ctx.fillStyle='rgba(100,200,150,0.35)';
+    ctx.font=`bold ${Math.min(10,W2*0.018)}px Orbitron,monospace`;
+    ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText('👁 ONE-WAY MIRROR — ONLY YOU CAN SEE THROUGH',W2/2,H2*0.03);
+  }
+
+  // Door hints
+  if(closetDoor<0.55){
+    ctx.fillStyle='rgba(255,140,50,0.9)';
+    ctx.shadowColor='#ff4400';ctx.shadowBlur=8;
+    ctx.font=`bold ${Math.min(15,W2*0.028)}px Creepster,cursive`;
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('DOOR CLOSING... 🚪',W2/2,H2*0.12);
+    ctx.shadowBlur=0;
+  }
+  if(closetDoor>0.92){
+    ctx.fillStyle='rgba(100,220,100,0.5)';
+    ctx.font=`bold ${Math.min(13,W2*0.024)}px Creepster,cursive`;
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('🤫 Door closed — stay quiet',W2/2,H2*0.9);
+  }
+
+  drawChildArms(W2,H2);
+}
+
+// ── FOXY DRAWINGS ─────────────────────────────────────────────────────────
+function drawFoxyInHall(x,y,s,vis){
+  ctx.save();ctx.translate(x,y);
+  ctx.globalAlpha=Math.min(1,vis*1.2);
+  const pulse=Math.sin(bobTime*3)*0.15+0.85;
+  const glow=flashOn?'#ff9966':'#ff1100';
+
+  // ── NIGHTMARE FOXY — dark torn horror version ─────────────────────────
+
+  // Ground shadow
+  ctx.fillStyle='rgba(0,0,0,0.5)';
+  ctx.beginPath();ctx.ellipse(0,s*.55,s*.45,s*.09,0,0,Math.PI*2);ctx.fill();
+
+  // Torn tattered legs — jagged
+  ctx.strokeStyle='#2a0800';ctx.lineWidth=s*.15;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(-s*.14,s*.35);ctx.lineTo(-s*.22,s*.58);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(s*.14,s*.35);ctx.lineTo(s*.22,s*.58);ctx.stroke();
+  // Torn fur at leg bottoms
+  ctx.fillStyle='#1a0500';
+  for(let i=-1;i<=1;i++){
+    ctx.beginPath();ctx.moveTo(i*s*.22-s*.05,s*.55);ctx.lineTo(i*s*.22,s*.68);ctx.lineTo(i*s*.22+s*.05,s*.55);ctx.closePath();ctx.fill();
+  }
+
+  // Body — very dark red, torn edges
+  ctx.shadowColor=glow;ctx.shadowBlur=20*pulse;
+  const bg=ctx.createRadialGradient(-s*.1,-s*.05,s*.02,0,0,s*.46);
+  bg.addColorStop(0,'#660e00');bg.addColorStop(0.6,'#300500');bg.addColorStop(1,'#100100');
+  ctx.fillStyle=bg;
+  // Jagged torn body silhouette
+  ctx.beginPath();
+  ctx.moveTo(0,-s*.38);
+  ctx.lineTo(s*.38,-s*.18);ctx.lineTo(s*.44,s*.02);
+  ctx.lineTo(s*.38,s*.12);ctx.lineTo(s*.42,s*.28);ctx.lineTo(s*.32,s*.36);
+  ctx.lineTo(s*.12,s*.42);ctx.lineTo(0,s*.38);
+  ctx.lineTo(-s*.12,s*.42);ctx.lineTo(-s*.32,s*.36);
+  ctx.lineTo(-s*.44,s*.18);ctx.lineTo(-s*.38,-s*.08);
+  ctx.lineTo(-s*.3,-s*.22);
+  ctx.closePath();ctx.fill();
+
+  // Exposed endo ribs showing through torn chest
+  ctx.strokeStyle='rgba(80,50,30,0.7)';ctx.lineWidth=s*.03;
+  for(let r=0;r<4;r++){
+    const ry=-s*.1+r*s*.1;
+    ctx.beginPath();ctx.moveTo(-s*.28,ry);ctx.quadraticCurveTo(0,ry-s*.04,s*.28,ry);ctx.stroke();
+  }
+
+  // HUGE nightmare hook arm — multiple joints
+  ctx.strokeStyle='#444';ctx.lineWidth=s*.12;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(-s*.35,s*.05);ctx.lineTo(-s*.68,s*.25);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(-s*.68,s*.25);ctx.lineTo(-s*.92,s*.08);ctx.stroke();
+  // Hook curl
+  ctx.strokeStyle='#666';ctx.lineWidth=s*.07;
+  ctx.beginPath();ctx.moveTo(-s*.9,s*.08);
+  ctx.quadraticCurveTo(-s*1.1,-s*.05,-s*.98,-s*.24);
+  ctx.quadraticCurveTo(-s*.88,-s*.38,-s*.72,-s*.3);ctx.stroke();
+  // Hook tip glint
+  ctx.fillStyle='rgba(200,180,120,0.8)';
+  ctx.beginPath();ctx.ellipse(-s*.71,-s*.29,s*.04,s*.06,-0.4,0,Math.PI*2);ctx.fill();
+
+  // Normal arm (right) — clawed fingers
+  ctx.strokeStyle='#2a0800';ctx.lineWidth=s*.11;
+  ctx.beginPath();ctx.moveTo(s*.35,s*.05);ctx.lineTo(s*.7,s*.28);ctx.stroke();
+  // Claws
+  ctx.strokeStyle='#555';ctx.lineWidth=s*.04;
+  for(let c2=0;c2<3;c2++){
+    const ang=-0.4+c2*0.35;
+    ctx.beginPath();ctx.moveTo(s*.7,s*.28);
+    ctx.lineTo(s*.7+Math.cos(ang)*s*.18,s*.28+Math.sin(ang)*s*.18);ctx.stroke();
+  }
+
+  // HEAD — larger, more angular nightmare version
+  ctx.shadowColor=glow;ctx.shadowBlur=30*pulse;
+  const hg=ctx.createRadialGradient(-s*.08,-s*.32,s*.03,-s*.02,-s*.24,s*.42);
+  hg.addColorStop(0,'#660d00');hg.addColorStop(0.5,'#2a0400');hg.addColorStop(1,'#0a0100');
+  ctx.fillStyle=hg;
+  // Angular nightmare head shape
+  ctx.beginPath();
+  ctx.moveTo(0,-s*.62);
+  ctx.lineTo(s*.36,-s*.5);ctx.lineTo(s*.44,-s*.28);ctx.lineTo(s*.4,-s*.12);
+  ctx.lineTo(s*.28,s*.02);ctx.lineTo(0,s*.06);
+  ctx.lineTo(-s*.28,s*.02);ctx.lineTo(-s*.42,-s*.14);
+  ctx.lineTo(-s*.44,-s*.32);ctx.lineTo(-s*.34,-s*.5);
+  ctx.closePath();ctx.fill();
+
+  // Torn fur/spikes on head top
+  ctx.fillStyle='#1a0400';
+  const spikes=[[-s*.18,-s*.62],[0,-s*.7],[s*.18,-s*.62],[-s*.3,-s*.55],[s*.3,-s*.55]];
+  for(const[sx3,sy3]of spikes){
+    ctx.beginPath();ctx.moveTo(sx3-s*.04,sy3+s*.06);ctx.lineTo(sx3,sy3);ctx.lineTo(sx3+s*.04,sy3+s*.06);ctx.closePath();ctx.fill();
+  }
+
+  // HUGE pointed ears
+  ctx.fillStyle='#3a0800';
+  ctx.beginPath();ctx.moveTo(-s*.32,-s*.48);ctx.lineTo(-s*.46,-s*.9);ctx.lineTo(-s*.16,-s*.5);ctx.closePath();ctx.fill();
+  ctx.beginPath();ctx.moveTo(s*.32,-s*.48);ctx.lineTo(s*.46,-s*.9);ctx.lineTo(s*.16,-s*.5);ctx.closePath();ctx.fill();
+  ctx.fillStyle='#882200';
+  ctx.beginPath();ctx.moveTo(-s*.32,-s*.5);ctx.lineTo(-s*.42,-s*.8);ctx.lineTo(-s*.2,-s*.52);ctx.closePath();ctx.fill();
+  ctx.beginPath();ctx.moveTo(s*.32,-s*.5);ctx.lineTo(s*.42,-s*.8);ctx.lineTo(s*.2,-s*.52);ctx.closePath();ctx.fill();
+
+  // Eyepatch — torn, larger
+  ctx.fillStyle='#0a0808';
+  ctx.beginPath();ctx.ellipse(-s*.16,-s*.3,s*.15,s*.12,0.25,0,Math.PI*2);ctx.fill();
+  // Torn strap
+  ctx.strokeStyle='#333';ctx.lineWidth=s*.025;
+  ctx.beginPath();ctx.moveTo(-s*.04,-s*.22);ctx.lineTo(s*.08,-s*.1);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(-s*.3,-s*.22);ctx.lineTo(-s*.42,-s*.12);ctx.stroke();
+  // Scratch marks over eyepatch
+  ctx.strokeStyle='rgba(150,30,0,0.6)';ctx.lineWidth=s*.018;
+  ctx.beginPath();ctx.moveTo(-s*.24,-s*.38);ctx.lineTo(-s*.08,-s*.2);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(-s*.2,-s*.4);ctx.lineTo(-s*.04,-s*.22);ctx.stroke();
+
+  // GLOWING EYE — large, intense
+  ctx.shadowColor=flashOn?'#ffcc88':'#ff3300';ctx.shadowBlur=flashOn?30:22*pulse;
+  const eyeGrad=ctx.createRadialGradient(s*.18,-s*.28,0,s*.18,-s*.28,s*.13);
+  eyeGrad.addColorStop(0,flashOn?'#ffffff':'#ff8800');
+  eyeGrad.addColorStop(0.4,flashOn?'#ffcc88':'#ff3300');
+  eyeGrad.addColorStop(1,'rgba(180,0,0,0)');
+  ctx.fillStyle=eyeGrad;
+  ctx.beginPath();ctx.ellipse(s*.18,-s*.28,s*.13,s*.15,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#000';ctx.shadowBlur=0;
+  ctx.beginPath();ctx.arc(s*.18,-s*.28,s*.065,0,Math.PI*2);ctx.fill();
+  // Eye shine
+  ctx.fillStyle='rgba(255,255,255,0.6)';
+  ctx.beginPath();ctx.arc(s*.14,-s*.32,s*.025,0,Math.PI*2);ctx.fill();
+
+  // NIGHTMARE MUZZLE — elongated, sharp
+  ctx.shadowColor=glow;ctx.shadowBlur=8*pulse;
+  ctx.fillStyle='#1a0400';
+  ctx.beginPath();
+  ctx.moveTo(-s*.3,s*.02);ctx.lineTo(s*.3,s*.02);
+  ctx.lineTo(s*.24,s*.2);ctx.lineTo(0,s*.28);ctx.lineTo(-s*.24,s*.2);
+  ctx.closePath();ctx.fill();
+
+  // MASSIVE jagged teeth — nightmare style
+  ctx.shadowBlur=0;
+  // Upper teeth
+  ctx.fillStyle='#e8e0cc';ctx.shadowColor='rgba(255,255,220,0.5)';ctx.shadowBlur=4;
+  const upperTeeth=[[-s*.24,s*.02],[-s*.16,s*.02],[-s*.08,s*.02],[0,s*.02],[s*.08,s*.02],[s*.16,s*.02],[s*.24,s*.02]];
+  for(let i=0;i<upperTeeth.length;i++){
+    const[tx,ty]=upperTeeth[i];
+    const h=i%2===0?s*.14:s*.1; // alternating long/short
+    ctx.beginPath();ctx.moveTo(tx-s*.04,ty);ctx.lineTo(tx,ty+h);ctx.lineTo(tx+s*.04,ty);ctx.closePath();ctx.fill();
+  }
+  // Lower teeth (smaller, going up)
+  ctx.fillStyle='#d8d0bc';
+  for(let i=0;i<5;i++){
+    const tx=-s*.2+i*s*.1, ty=s*.28;
+    ctx.beginPath();ctx.moveTo(tx-s*.035,ty);ctx.lineTo(tx,ty-s*.09);ctx.lineTo(tx+s*.035,ty);ctx.closePath();ctx.fill();
+  }
+  ctx.shadowBlur=0;
+
+  // Blood/damage marks
+  ctx.fillStyle='rgba(180,0,0,0.4)';
+  ctx.beginPath();ctx.ellipse(-s*.05,-s*.15,s*.04,s*.12,0.5,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(s*.28,-s*.08,s*.03,s*.09,-0.3,0,Math.PI*2);ctx.fill();
+
+  ctx.globalAlpha=1;ctx.restore();
+}
+
+function drawFoxyFace(c,cx,cy,s){
+  // Nightmare Foxy jumpscare face — filling the screen
+  c.save();c.translate(cx,cy);
+  c.shadowColor='#ff0000';c.shadowBlur=80;
+
+  // Dark red nightmare head
+  const hg=c.createRadialGradient(-s*.1,-s*.1,s*.04,0,0,s*.55);
+  hg.addColorStop(0,'#660d00');hg.addColorStop(0.5,'#280400');hg.addColorStop(1,'#080000');
+  c.fillStyle=hg;
+  c.beginPath();
+  c.moveTo(0,-s*.62);c.lineTo(s*.42,-s*.48);c.lineTo(s*.5,-s*.2);
+  c.lineTo(s*.46,s*.08);c.lineTo(s*.3,s*.22);c.lineTo(0,s*.28);
+  c.lineTo(-s*.3,s*.22);c.lineTo(-s*.46,s*.08);c.lineTo(-s*.5,-s*.2);
+  c.lineTo(-s*.42,-s*.48);c.closePath();c.fill();
+
+  // Pointed ears
+  c.fillStyle='#3a0800';
+  c.beginPath();c.moveTo(-s*.38,-s*.46);c.lineTo(-s*.56,-s*.96);c.lineTo(-s*.18,-s*.5);c.closePath();c.fill();
+  c.beginPath();c.moveTo(s*.38,-s*.46);c.lineTo(s*.56,-s*.96);c.lineTo(s*.18,-s*.5);c.closePath();c.fill();
+  c.fillStyle='#992200';
+  c.beginPath();c.moveTo(-s*.38,-s*.48);c.lineTo(-s*.5,-s*.86);c.lineTo(-s*.22,-s*.52);c.closePath();c.fill();
+  c.beginPath();c.moveTo(s*.38,-s*.48);c.lineTo(s*.5,-s*.86);c.lineTo(s*.22,-s*.52);c.closePath();c.fill();
+
+  // Eyepatch with scratches
+  c.fillStyle='#0a0808';c.shadowBlur=0;
+  c.beginPath();c.ellipse(-s*.18,-s*.12,s*.17,s*.14,0.25,0,Math.PI*2);c.fill();
+  c.strokeStyle='rgba(150,30,0,0.7)';c.lineWidth=s*.022;
+  c.beginPath();c.moveTo(-s*.28,-s*.28);c.lineTo(-s*.06,-s*.05);c.stroke();
+  c.beginPath();c.moveTo(-s*.24,-s*.3);c.lineTo(-s*.02,-s*.08);c.stroke();
+
+  // Giant glowing eye
+  c.shadowColor='#ff4400';c.shadowBlur=40;
+  const eg=c.createRadialGradient(s*.2,-s*.14,0,s*.2,-s*.14,s*.16);
+  eg.addColorStop(0,'#ffffff');eg.addColorStop(0.3,'#ffaa00');eg.addColorStop(1,'rgba(255,0,0,0)');
+  c.fillStyle=eg;c.beginPath();c.ellipse(s*.2,-s*.14,s*.16,s*.18,0,0,Math.PI*2);c.fill();
+  c.fillStyle='#000';c.shadowBlur=0;c.beginPath();c.arc(s*.2,-s*.14,s*.08,0,Math.PI*2);c.fill();
+  c.fillStyle='rgba(255,255,255,0.7)';c.beginPath();c.arc(s*.15,-s*.2,s*.03,0,Math.PI*2);c.fill();
+
+  // Wide open muzzle
+  c.shadowColor='#ff0000';c.shadowBlur=20;c.fillStyle='#100200';
+  c.beginPath();c.moveTo(-s*.38,s*.04);c.lineTo(s*.38,s*.04);c.lineTo(s*.3,s*.32);c.lineTo(0,s*.42);c.lineTo(-s*.3,s*.32);c.closePath();c.fill();
+
+  // Massive teeth
+  c.shadowColor='rgba(255,255,200,0.4)';c.shadowBlur=6;c.fillStyle='#ece4ce';
+  for(let t=-4;t<=4;t++){
+    const h=Math.abs(t)%2===0?s*.22:s*.16;
+    c.beginPath();c.moveTo(t*s*.07-s*.04,s*.04);c.lineTo(t*s*.07,s*.04+h);c.lineTo(t*s*.07+s*.04,s*.04);c.closePath();c.fill();
+  }
+  c.fillStyle='#dcd4bc';
+  for(let t=-3;t<=3;t++){
+    c.beginPath();c.moveTo(t*s*.08-s*.035,s*.42);c.lineTo(t*s*.08,s*.42-s*.12);c.lineTo(t*s*.08+s*.035,s*.42);c.closePath();c.fill();
+  }
+  c.shadowBlur=0;
+
+  // Hook coming in from the side
+  c.strokeStyle='#555';c.lineWidth=s*.06;c.lineCap='round';
+  c.beginPath();c.moveTo(-s*.6,s*.1);c.lineTo(-s*.44,-s*.02);c.stroke();
+  c.strokeStyle='#888';c.lineWidth=s*.04;
+  c.beginPath();c.moveTo(-s*.44,-s*.02);c.quadraticCurveTo(-s*.58,-s*.18,-s*.48,-s*.32);c.stroke();
+
+  // Blood drips from mouth
+  c.fillStyle='rgba(200,0,0,0.6)';
+  for(const[dx,dy,dh]of[[-s*.1,s*.38,s*.1],[s*.05,s*.4,s*.15],[s*.22,s*.36,s*.08]]){
+    c.beginPath();c.moveTo(dx-s*.018,dy);c.lineTo(dx,dy+dh);c.lineTo(dx+s*.018,dy);c.closePath();c.fill();
+  }
+
+  c.shadowBlur=0;c.restore();
+}
+
+function drawChildArms(W2,H2){
+  ctx.save();ctx.translate(W2/2,H2);
+  ctx.fillStyle='#c8a070';
+  for(const[ox,rot]of[[-W2*0.22,-0.15],[W2*0.22,0.15]]){
+    ctx.save();ctx.translate(ox,0);ctx.rotate(rot);
+    ctx.beginPath();ctx.roundRect(-10,-65,20,65,5);ctx.fill();
+    ctx.beginPath();ctx.ellipse(0,-67,12,10,0,0,Math.PI*2);ctx.fill();
+    for(let f=-1;f<=1;f++){ctx.beginPath();ctx.ellipse(f*5,-76,3.5,7,f*0.12,0,Math.PI*2);ctx.fill();}
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+// ── MINIMAP ───────────────────────────────────────────────────────────────
+// FNAF4 bedroom layout — grid cells (1=wall, 0=floor)
+// 18 cols x 14 rows representing the full FNAF4 map
+const FNAF4_MAP=[
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  [1,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,1,1,0,0,0,0,0,0,0,1,1,0,0,0,1],
+  [1,0,0,1,1,0,0,0,0,0,0,0,1,1,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,1,0,0,1,1,1,0,0,0,0,1,1,1,0,0,1,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,1,1,0,0,0,0,0,0,0,1,1,0,0,0,1],
+  [1,0,0,1,1,0,0,0,0,0,0,0,1,1,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+];
+// Named locations on the map (col, row, label, color)
+const MAP_LABELS=[
+  {c:4,  r:2,  w:4, h:4, label:'BED',     color:'rgba(60,30,15,0.7)'},
+  {c:13, r:2,  w:3, h:4, label:'DESK',    color:'rgba(40,40,60,0.6)'},
+  {c:1,  r:1,  w:2, h:5, label:'CLOSET',  color:'rgba(0,80,40,0.5)',  isCloset:true},
+  {c:14, r:8,  w:2, h:4, label:'WARDROBE',color:'rgba(50,25,8,0.7)'},
+  {c:8,  r:1,  w:2, h:3, label:'HALL', color:'rgba(80,20,0,0.6)', isDoor:true},
+];
+
+function drawMinimap(W2,H2){
+  const COLS=18,ROWS=14;
+  const mW=180,mH=140,mX=W2/2-mW/2,mY=68;
+  const tW=mW/COLS,tH=mH/ROWS;
+
+  // Background
+  ctx.fillStyle='rgba(0,0,0,0.88)';
+  ctx.beginPath();ctx.roundRect(mX-2,mY-2,mW+4,mH+20,6);ctx.fill();
+  ctx.strokeStyle='rgba(255,100,50,0.55)';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.roundRect(mX-2,mY-2,mW+4,mH+20,6);ctx.stroke();
+
+  // Title
+  ctx.fillStyle='rgba(255,130,60,0.9)';
+  ctx.font='bold 7px Orbitron,monospace';ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillText('FNAF4 BEDROOM MAP',mX+mW/2,mY-1);
+
+  // Draw map tiles
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      const sx=mX+c*tW,sy=mY+r*tH;
+      if(FNAF4_MAP[r][c]===1){
+        ctx.fillStyle='#2a1808';
+        ctx.fillRect(sx,sy,tW+0.5,tH+0.5);
+        // Brick highlight
+        ctx.fillStyle='rgba(60,30,12,0.6)';
+        ctx.fillRect(sx+0.5,sy+0.5,tW-1,tH*0.4);
+      } else {
+        ctx.fillStyle='#0c0808';
+        ctx.fillRect(sx,sy,tW+0.5,tH+0.5);
+      }
+    }
+  }
+
+  // Named rooms
+  for(const room of MAP_LABELS){
+    const rx=mX+room.c*tW,ry=mY+room.r*tH,rw=room.w*tW,rh=room.h*tH;
+    // Highlight if closet and player is in it
+    const isActive=room.isCloset&&inCloset;
+    ctx.fillStyle=isActive?'rgba(0,200,80,0.5)':room.color;
+    ctx.fillRect(rx,ry,rw,rh);
+    ctx.strokeStyle=isActive?'rgba(0,255,100,0.8)':'rgba(150,80,30,0.4)';
+    ctx.lineWidth=1;ctx.strokeRect(rx,ry,rw,rh);
+    // Label
+    ctx.fillStyle=isActive?'rgba(100,255,150,0.95)':'rgba(200,150,80,0.7)';
+    ctx.font=`bold ${Math.min(6,tW*1.5)}px Orbitron,monospace`;
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(room.label,rx+rw/2,ry+rh/2);
+    // Door flash
+    if(room.isDoor&&foxyState==='atdoor'){
+      const p=Math.sin(bobTime*8)*0.5+0.5;
+      ctx.fillStyle=`rgba(255,50,0,${p*0.6})`;ctx.fillRect(rx,ry,rw,rh);
+    }
+  }
+
+  // YOU dot
+  const youCol=inCloset?{c:1.5,r:3.5}:{c:8,r:7}; // closet or bedroom centre
+  const youX=mX+youCol.c*tW,youY=mY+youCol.r*tH;
+  const yp=Math.sin(bobTime*4)*0.3+0.7;
+  ctx.shadowColor='#ffcc44';ctx.shadowBlur=8*yp;
+  ctx.fillStyle=`rgba(255,220,80,${yp})`;
+  ctx.beginPath();ctx.arc(youX,youY,3.5,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;
+  ctx.fillStyle='rgba(255,220,80,0.9)';
+  ctx.font='bold 6px Orbitron,monospace';ctx.textAlign='center';ctx.textBaseline='bottom';
+  ctx.fillText('YOU',youX,youY-4);
+
+  // FOXY dot — moves along the hall (col 8-9, row varies with foxyPos)
+  // Hall is top-centre; foxyPos 0=row 1 far, 1=row 6 at door
+  const foxyMapC=8.5;
+  const foxyMapR=1+foxyPos*5.5;
+  const foxyMapX=mX+foxyMapC*tW;
+  const foxyMapY=mY+foxyMapR*tH;
+  const fp=Math.sin(bobTime*5)*0.35+0.65;
+  ctx.shadowColor='#ff4400';ctx.shadowBlur=10*fp;
+  ctx.fillStyle=`rgba(255,${Math.floor(60+fp*50)},0,${0.75+fp*0.25})`;
+  ctx.beginPath();ctx.arc(foxyMapX,foxyMapY,4.5,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;
+  ctx.font='7px serif';ctx.textAlign='center';ctx.textBaseline='bottom';
+  ctx.fillText('🦊',foxyMapX,foxyMapY-3);
+
+  // Foxy state label
+  const sLabel={lurk:'LURKING',approach:'APPROACHING!',atdoor:'AT THE DOOR!!!',retreat:'RETREATING'};
+  const sCol={lurk:'rgba(140,70,35,0.8)',approach:'rgba(255,160,40,0.95)',atdoor:'rgba(255,30,0,0.95)',retreat:'rgba(80,200,80,0.9)'};
+  ctx.fillStyle=sCol[foxyState]||'#aaa';
+  ctx.font='bold 7px Orbitron,monospace';ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillText(sLabel[foxyState]||'',mX+mW/2,mY+mH+3);
+}
+
+// ── CLOCK + UI ─────────────────────────────────────────────────────────────
+function updateClock(){
+  const mins=(nightTime/NIGHT_DURATION)*360,h=Math.floor(mins/60),m=Math.floor(mins%60);
+  const el=document.getElementById('clock-txt');
+  el.textContent=(h===0?12:h)+':'+(m<10?'0':'')+m+' AM';
+  el.style.color=NIGHT_DURATION-nightTime<60?(Math.floor(Date.now()/400)%2?'#ff4444':'#ffaaaa'):'#aaddff';
+}
+function updateUI(){
+  document.getElementById('score-txt').textContent='⭐ '+Math.floor(score);
+  document.getElementById('night-txt').textContent='NIGHT '+night+'/5';
+  document.getElementById('lives-txt').textContent='❤️'.repeat(Math.max(0,lives));
+}
+function showMsg(t){const el=document.getElementById('msg');el.textContent=t;el.style.opacity='1';clearTimeout(msgTimer);msgTimer=setTimeout(()=>el.style.opacity='0',2500);}
+
+function endGame(win){
+  const ov=document.getElementById('overlay');
+  if(win&&night<5){
+    ov.innerHTML=`<h1>🌅 6 AM — YOU MADE IT!</h1>
+      <p style="color:#ff8844;font-size:1.1rem;margin:6px 0;">Night ${night} survived! +${500*night} pts</p>
+      <p style="color:#ffd700;font-size:1.1rem;">Score: ${Math.floor(score)}</p>
+      <p style="color:#ff6644;margin-top:5px;">Night ${night+1}: Foxy gets faster and lurks less...</p>`;
+    ov.style.display='flex';
+    const btn=document.createElement('button');
+    btn.className='btn'; btn.textContent='▶ NEXT NIGHT';
+    btn.addEventListener('click',()=>{ ea();ov.style.display='none';night++;startNight(night);running=true; });
+    ov.appendChild(btn); ov.appendChild(HS._homeBtn());
+  } else {
+    HS.showGameOver({
+      key:'foxy_closet', score:Math.floor(score), overlayEl:ov,
+      title: win ? '🏆 ALL 5 NIGHTS SURVIVED!' : '💀 FOXY GOT YOU!',
+      subtitle: win ? 'Foxy has been defeated! You\'re a master hider!' : `Night ${night} · Get in the closet faster next time!`,
+      btnLabel: win ? '▶ PLAY AGAIN' : '▶ TRY AGAIN',
+      onRestart:()=>{ ea();score=0;lives=3;night=1;startNight(1);running=true; },
+      hiColor:'#ff6644',
+      titleStyle:"font-family:'Creepster',cursive;font-size:clamp(1.8rem,6vw,3rem);color:#ff4400;text-shadow:0 0 30px #ff2200;letter-spacing:2px;text-align:center;margin-bottom:8px",
+      btnClass:'btn'
+    });
+  }
+}
+
+// ── LOOP ──────────────────────────────────────────────────────────────────
+function loop(now){
+  const dt=Math.min((now-lastTime)/1000,0.05);lastTime=now;
+  try{update(dt);draw();}catch(e){console.error(e);}
+  requestAnimationFrame(loop);
+}
+document.getElementById('startBtn').addEventListener('click',()=>{
+  ea();document.getElementById('overlay').style.display='none';
+  startNight(1);running=true;
+});
+requestAnimationFrame(t=>{lastTime=t;requestAnimationFrame(loop);});
+</script>
+</body>
+</html>

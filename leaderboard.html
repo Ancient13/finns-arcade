@@ -169,6 +169,7 @@
 <div id="boards"></div>
 
 <div id="last-updated"></div>
+<div id="cloud-status" style="text-align:center;font-size:0.7rem;letter-spacing:1px;margin:4px 0;opacity:0.5"></div>
 
 <div class="divider"></div>
 <footer>Made with ❤️ for <span>Finn</span> · Finn's Arcade 2025</footer>
@@ -201,6 +202,8 @@ const GAMES = [
   { key:'cupcake_hide',  icon:'🧁', title:'Mr. Cupcake Hides!',         file:'cupcake-hide.html',       accent:'#ff88cc', glow:'#ff88cc66' },
   { key:'haunted_cupcake',icon:'😈',title:'The Haunted Cupcake!',        file:'haunted-cupcake.html',    accent:'#ff88cc', glow:'#ff88cc66' },
   { key:'mangle_dino',   icon:'🦊', title:'Nightmare Mangle vs Dino',  file:'mangle-dino.html',        accent:'#ff88cc', glow:'#ff88cc66' },
+  { key:'cupcake_nightmare',icon:'🧁',title:'Cupcake vs Nightmare!',     file:'cupcake-vs-nightmare.html',accent:'#ff88cc', glow:'#ff88cc66' },
+  { key:'foxy_closet',   icon:'🦊', title:'Hide from Nightmare Foxy!', file:'foxy-closet.html',         accent:'#ff6644', glow:'#ff664466' },
 ];
 
 const medals = ['🥇','🥈','🥉'];
@@ -265,11 +268,19 @@ function buildBoards(){
   }
 }
 
+// Pull cloud scores first, then render (shows local immediately, refreshes after cloud sync)
 buildBoards();
+const cloudEl = document.getElementById('cloud-status');
+if(typeof CLOUD_ENABLED !== 'undefined' && CLOUD_ENABLED){
+  cloudEl.textContent = '🌐 Syncing shared scores...';
+  HS._cloudPull().then(() => { buildBoards(); cloudEl.textContent = '✅ Shared leaderboard — scores from all players'; });
+} else {
+  cloudEl.textContent = '📱 Local scores only — see README to enable shared cloud leaderboard';
+}
 
 // Auto-refresh if a game updates scores while this tab is open
 window.addEventListener('storage', e => {
-  if(e.key === 'hs_updated') buildBoards();
+  if(e.key === 'hs_updated' || e.key === 'hs_cloud_bin_id') buildBoards();
 });
 </script>
 </body>
