@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Puppet Chase - First Person!</title>
+<script src="leaderboard.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Creepster&family=Fredoka+One&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#000; overflow:hidden; touch-action:none; user-select:none; font-family:'Fredoka One',cursive; }
+  canvas { display:block; margin:0 auto; }
+
+  #ui {
+    position:fixed; top:0; left:0; right:0;
+    display:flex; justify-content:space-between; align-items:center;
+    padding:8px 14px; z-index:10; pointer-events:none;
+    background:linear-gradient(180deg,rgba(0,0,0,0.85),transparent);
+  }
+  .pill { background:rgba(0,0,0,0.7); border-radius:20px; padding:4px 14px; font-size:0.95rem; letter-spacing:1px; }
+  #score-txt { color:#ffd700; border:1.5px solid #ffd70055; }
+  #level-txt { color:#cc44ff; border:1.5px solid #cc44ff55; }
+  #lives-txt { color:#ff4455; border:1.5px solid #ff445555; }
+
+  /* Minimap */
+  #minimap {
+    position:fixed; top:52px; right:12px;
+    border:2px solid rgba(180,0,255,0.4); border-radius:4px;
+    background:rgba(0,0,0,0.7); z-index:10; pointer-events:none;
+  }
+
+  /* Crosshair */
+  #xhair {
+    position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+    pointer-events:none; z-index:10; opacity:0.7;
+  }
+
+  /* Danger vignette */
+  #danger { position:fixed; inset:0; pointer-events:none; z-index:8; opacity:0;
+    background:radial-gradient(ellipse,transparent 35%,#ff000088 100%); transition:opacity 0.2s; }
+
+  /* Joystick - move */
+  #joy-zone { position:fixed; bottom:24px; left:24px; width:110px; height:110px; z-index:15; pointer-events:all; }
+  #joy-base { width:110px; height:110px; border-radius:50%; background:rgba(255,200,50,0.08); border:2px solid rgba(255,200,50,0.3); position:absolute; }
+  #joy-knob { width:42px; height:42px; border-radius:50%; background:radial-gradient(circle at 35% 35%,#ffee88,#cc8800); border:2px solid #ffd700; position:absolute; top:34px; left:34px; box-shadow:0 0 10px #ffd70088; }
+
+  /* Look zone - right side drag */
+  #look-zone { position:fixed; bottom:0; right:0; width:55%; height:100%; z-index:12; pointer-events:all; }
+
+  #msg {
+    position:fixed; top:40%; left:50%; transform:translate(-50%,-50%);
+    font-family:'Creepster',cursive; font-size:2rem; color:#ffd700;
+    text-shadow:0 0 20px #ff8800; white-space:pre-line;
+    pointer-events:none; opacity:0; transition:opacity 0.3s; z-index:20;
+    text-align:center; background:rgba(0,0,0,0.65); padding:10px 22px; border-radius:12px;
+  }
+
+  #overlay {
+    position:fixed; inset:0; z-index:30;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:rgba(0,0,0,0.94);
+  }
+  #overlay h1 { font-family:'Creepster',cursive; font-size:clamp(2rem,7vw,3.5rem); color:#cc44ff;
+    text-shadow:0 0 30px #8800cc; letter-spacing:2px; text-align:center; margin-bottom:8px; }
+  #overlay p { color:#888; font-size:0.88rem; margin:3px 0; text-align:center; letter-spacing:1px; }
+  .btn { margin-top:20px; padding:12px 40px; font-family:'Creepster',cursive;
+    font-size:1.8rem; letter-spacing:2px; color:#ffd700;
+    border:2px solid #ffd700; background:transparent; border-radius:6px; cursor:pointer; box-shadow:0 0 20px #ffd70033; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<canvas id="minimap" width="144" height="104"></canvas>
+<div id="danger"></div>
+
+<div id="ui">
+  <div class="pill" id="score-txt">🧁 0</div>
+  <div class="pill" id="level-txt">🎁 LEVEL 1</div>
+  <div class="pill" id="lives-txt">❤️❤️❤️</div>
+</div>
+
+<div id="xhair">
+  <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+    <circle cx="16" cy="16" r="6" stroke="#ffd700" stroke-width="1.5" opacity="0.7"/>
+    <line x1="16" y1="2" x2="16" y2="10" stroke="#ffd700" stroke-width="1.5"/>
+    <line x1="16" y1="22" x2="16" y2="30" stroke="#ffd700" stroke-width="1.5"/>
+    <line x1="2" y1="16" x2="10" y2="16" stroke="#ffd700" stroke-width="1.5"/>
+    <line x1="22" y1="16" x2="30" y2="16" stroke="#ffd700" stroke-width="1.5"/>
+  </svg>
+</div>
+
+<div id="joy-zone"><div id="joy-base"></div><div id="joy-knob"></div></div>
+<div id="look-zone"></div>
+<div id="msg"></div>
+
+<div id="overlay">
+  <h1>🎁 THE PUPPET<br>HUNGERS 🧁</h1>
+  <p style="color:#cc88ff;font-size:1rem;margin-bottom:6px;">First person through Freddy's!</p>
+  <p>Run from The Puppet · Collect 🌟 stars!</p>
+  <p style="color:#ff6644;font-weight:900;margin-top:6px;">⚠️ If you hear him — RUN!</p>
+  <p style="color:#555;margin-top:10px;font-size:0.8rem;">
+    Joystick = move · Right drag = look<br>
+    WASD = move · Mouse = look
+  </p>
+  <button class="btn" id="startBtn">▶ RUN MR. CUPCAKE!</button>
+</div>
+
+<script>
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+const mm=document.getElementById('minimap');
+const mCtx=mm.getContext('2d');
+let W,H;
+function resize(){ W=window.innerWidth; H=window.innerHeight; canvas.width=W; canvas.height=H; }
+resize(); window.addEventListener('resize',resize);
+
+// ── AUDIO ──────────────────────────────────────────────────────────────────
+let ac=null;
+function ea(){ if(!ac) ac=new(window.AudioContext||window.webkitAudioContext)(); if(ac.state==='suspended') ac.resume(); }
+function beep(f,type,dur,vol=0.2,slide=null){
+  try{ ea(); const o=ac.createOscillator(),g=ac.createGain(); o.type=type;
+    o.frequency.setValueAtTime(f,ac.currentTime); if(slide) o.frequency.exponentialRampToValueAtTime(slide,ac.currentTime+dur);
+    g.gain.setValueAtTime(vol,ac.currentTime); g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+dur);
+    o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime+dur+0.01);
+  }catch(e){}
+}
+function playCollect(){ [880,1100,1320].forEach((f,i)=>setTimeout(()=>beep(f,'sine',0.1,0.22),i*55)); }
+function playCaught(){  beep(180,'sawtooth',0.7,0.4,40); }
+function playWin(){     [523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,'sine',0.18,0.28),i*90)); }
+function playStinger(){ beep(80,'square',0.5,0.3,60); }
+let nearTimer=0;
+function playNear(){
+  try{ ea();
+    const o=ac.createOscillator(),g=ac.createGain();
+    o.type='sine'; o.frequency.value=60;
+    g.gain.setValueAtTime(0.15,ac.currentTime); g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.4);
+    o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime+0.45);
+  }catch(e){}
+}
+
+// ── FNAF1 MAP ──────────────────────────────────────────────────────────────
+const TILE=1; // world units
+// FNAF1 full accurate map - 36x26
+// Every room, corridor, wall and alcove from the game
+const MAP=[
+//   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1], //0
+  [1,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1], //1 stage+dining+piratecove
+  [1,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1], //2
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,1,1,1,1,1,1,1,1], //3 pirate cove wall right
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,1,0,0,0,0,0,0,1], //4 kitchen starts
+  [1,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1], //5
+  [1,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1], //6 kitchen
+  [1,1,1,0,0,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1], //7 backstage wall
+  [1,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1], //8 backstage+supply
+  [1,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1], //9
+  [1,1,1,0,0,1,1,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,1], //10 dividing walls dining
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1], //11 e.hall
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1], //12
+  [1,1,1,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,1], //13 long wall
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1], //14 w.hall+e.hall corner
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1], //15
+  [1,1,1,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1], //16 w.hall corner wall
+  [1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1], //17 party rooms
+  [1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1], //18
+  [1,1,1,1,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,1,1,1,1,1,0,0,0,0,0,0,1], //19 party room dividers
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1], //20
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1], //21 e.hall corner bottom
+  [1,1,1,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,1], //22
+  [1,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1], //23 bottom corridor
+  [1,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1], //24
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1], //25
+];
+const MAP_W=MAP[0].length, MAP_H=MAP.length;
+
+// Wall colour per room (FNAF1 accurate)
+function wallColor(mx,my,side){
+  const d=side?0.7:1.0;
+  // SHOW STAGE - warm tan/brown
+  if(mx<=10&&my<=7) return [Math.floor(180*d),Math.floor(140*d),Math.floor(90*d)];
+  // PIRATE COVE - teal curtain
+  if(mx>=18&&mx<=27&&my<=9) return [Math.floor(30*d),Math.floor(100*d),Math.floor(120*d)];
+  // KITCHEN - dark grey metal
+  if(mx>=28) return [Math.floor(80*d),Math.floor(80*d),Math.floor(90*d)];
+  // BACKSTAGE - dark purple
+  if(mx<=8&&my>=7&&my<=13) return [Math.floor(60*d),Math.floor(30*d),Math.floor(80*d)];
+  // SUPPLY CLOSET - olive green
+  if(mx<=8&&my>=8&&my<=12) return [Math.floor(60*d),Math.floor(80*d),Math.floor(40*d)];
+  // WEST HALL - blue-grey corridor
+  if(mx<=5&&my>=10&&my<=22) return [Math.floor(50*d),Math.floor(60*d),Math.floor(90*d)];
+  // EAST HALL - darker blue
+  if(mx>=26&&my>=10&&my<=22) return [Math.floor(40*d),Math.floor(50*d),Math.floor(110*d)];
+  // PARTY ROOMS - purple/pink
+  if(my>=17&&my<=22) return [Math.floor(120*d),Math.floor(50*d),Math.floor(110*d)];
+  // OFFICE - very dark, security room feel
+  if(mx<=6&&my>=22) return [Math.floor(30*d),Math.floor(30*d),Math.floor(40*d)];
+  // DINING AREA - warm brick
+  return [Math.floor(150*d),Math.floor(80*d),Math.floor(40*d)];
+}
+
+function isWall(x,y){
+  const mx=Math.floor(x), my=Math.floor(y);
+  if(mx<0||mx>=MAP_W||my<0||my>=MAP_H) return true;
+  return MAP[my][mx]!==0;
+}
+
+// ── PLAYER ────────────────────────────────────────────────────────────────
+let px=3.5,py=23.5,pAngle=0; // start in Office area
+let bobTime=0, running=false;
+const PSPD=3.5, ROT_SPD=2.2;
+const FOV=Math.PI/2.2;
+
+// ── PUPPET (enemy) ────────────────────────────────────────────────────────
+let ex=5.5,ey=2.5; // starts on Show Stage
+let eAngle=0, ebfsTimer=0, etargetX=4.5, etargetY=2.5;
+let eSpeed=0, eVisible=false, eScreamTimer=0;
+
+// ── STARS ─────────────────────────────────────────────────────────────────
+let stars=[], score=0, lives=3, level=1, invince=0, msgTimer=null;
+
+function spawnStars(count){
+  stars=[];
+  let attempts=0;
+  while(stars.length<count&&attempts<1000){
+    attempts++;
+    const x=1+Math.random()*(MAP_W-2)+0.5;
+    const y=1+Math.random()*(MAP_H-2)+0.5;
+    if(isWall(x,y)) continue;
+    if(Math.hypot(x-px,y-py)<2) continue;
+    stars.push({x,y,collected:false,bob:Math.random()*Math.PI*2});
+  }
+}
+
+function startLevel(lvl){
+  level=lvl; eSpeed=0.9+lvl*0.4; invince=0;
+  // Reset player to office bottom-left
+  px=3.5; py=23.5; pAngle=0;
+  // Puppet starts on Show Stage top-left
+  ex=5.5; ey=2.5; etargetX=ex; etargetY=ey;
+  spawnStars(6+lvl*2);
+  updateUI();
+}
+
+// ── BFS ───────────────────────────────────────────────────────────────────
+function bfsNext(fx,fy,tx,ty){
+  const fc=Math.floor(fx),fr=Math.floor(fy);
+  const tc=Math.floor(tx),tr=Math.floor(ty);
+  if(fc===tc&&fr===tr) return {x:tx,y:ty};
+  const visited=new Set(),prev=new Map();
+  const q=[[fc,fr]]; visited.add(fc+','+fr);
+  while(q.length){
+    const [c,r]=q.shift();
+    if(c===tc&&r===tr){
+      let cur=c+','+r;
+      while(true){
+        const p=prev.get(cur); if(!p) break;
+        const [pc,pr]=p;
+        if(pc===fc&&pr===fr) return {x:c+0.5,y:r+0.5};
+        cur=pc+','+pr;
+      }
+      return {x:tc+0.5,y:tr+0.5};
+    }
+    for(const [dc,dr] of [[0,1],[0,-1],[1,0],[-1,0]]){
+      const nc=c+dc,nr=r+dr,key=nc+','+nr;
+      if(nc<0||nc>=MAP_W||nr<0||nr>=MAP_H||MAP[nr][nc]!==0||visited.has(key)) continue;
+      visited.add(key); prev.set(key,[c,r]); q.push([nc,nr]);
+    }
+  }
+  return {x:fx,y:fy};
+}
+
+// ── CONTROLS ──────────────────────────────────────────────────────────────
+const keys={};
+window.addEventListener('keydown',e=>{ keys[e.key]=true; if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault(); });
+window.addEventListener('keyup',  e=>keys[e.key]=false);
+
+// Mouse look
+document.addEventListener('mousemove',e=>{
+  if(document.pointerLockElement===canvas&&running) pAngle+=e.movementX*0.003;
+});
+canvas.addEventListener('click',()=>{ if(running) canvas.requestPointerLock?.().catch(()=>{}); });
+
+// Joystick (move)
+const jZone=document.getElementById('joy-zone'),jKnob=document.getElementById('joy-knob');
+let jActive=false,jTouchId=null,jx=0,jy=0;
+function jSet(ex2,ey2){
+  const r=jZone.getBoundingClientRect();
+  const ox=ex2-r.left-55,oy=ey2-r.top-55;
+  const d=Math.min(32,Math.hypot(ox,oy)),a=Math.atan2(oy,ox);
+  jx=Math.cos(a)*d/32; jy=Math.sin(a)*d/32;
+  jKnob.style.left=(34+jx*32)+'px'; jKnob.style.top=(34+jy*32)+'px'; jActive=true;
+}
+function jClear(){ jActive=false;jx=0;jy=0;jKnob.style.left='34px';jKnob.style.top='34px'; }
+jZone.addEventListener('touchstart',e=>{ e.preventDefault();const t=e.changedTouches[0];jTouchId=t.identifier;jSet(t.clientX,t.clientY); });
+jZone.addEventListener('touchmove', e=>{ e.preventDefault();for(const t of e.changedTouches)if(t.identifier===jTouchId)jSet(t.clientX,t.clientY); });
+jZone.addEventListener('touchend',  e=>{ e.preventDefault();jClear(); });
+jZone.addEventListener('mousedown', e=>jSet(e.clientX,e.clientY));
+window.addEventListener('mousemove',e=>{ if(jActive&&!jTouchId)jSet(e.clientX,e.clientY); });
+window.addEventListener('mouseup',  ()=>{ if(!jTouchId)jClear(); });
+
+// Look zone (right side drag)
+const lookZone=document.getElementById('look-zone');
+let lookLastX=null,lookTouchId=null;
+lookZone.addEventListener('touchstart',e=>{ e.preventDefault();const t=e.changedTouches[0];lookTouchId=t.identifier;lookLastX=t.clientX; });
+lookZone.addEventListener('touchmove', e=>{ e.preventDefault();for(const t of e.changedTouches)if(t.identifier===lookTouchId&&lookLastX!==null){ pAngle+=(t.clientX-lookLastX)*0.005; lookLastX=t.clientX; } });
+lookZone.addEventListener('touchend',  e=>{ lookLastX=null;lookTouchId=null; });
+
+// ── UPDATE ────────────────────────────────────────────────────────────────
+let lastTime=0;
+function update(dt){
+  if(!running) return;
+  bobTime+=dt; invince=Math.max(0,invince-dt);
+
+  // Player move
+  let mx=0,my=0;
+  const spd=PSPD*dt;
+  if(keys['ArrowUp']  ||keys['w']||keys['W']) { mx+=Math.cos(pAngle)*spd; my+=Math.sin(pAngle)*spd; }
+  if(keys['ArrowDown'] ||keys['s']||keys['S']) { mx-=Math.cos(pAngle)*spd; my-=Math.sin(pAngle)*spd; }
+  if(keys['ArrowLeft'] ||keys['a']||keys['A']) pAngle-=ROT_SPD*dt;
+  if(keys['ArrowRight']||keys['d']||keys['D']) pAngle+=ROT_SPD*dt;
+  if(jActive){
+    mx+=Math.cos(pAngle)*(-jy)*spd*1.8 - Math.sin(pAngle)*jx*spd;
+    my+=Math.sin(pAngle)*(-jy)*spd*1.8 + Math.cos(pAngle)*jx*spd;
+  }
+  const R=0.3;
+  if(!isWall(px+mx,py))   px+=mx;
+  if(!isWall(px,py+my))   py+=my;
+  if(!isWall(px+mx,py+my)&&isWall(px+mx,py)&&isWall(px,py+my)){} // corner
+
+  // Puppet BFS
+  ebfsTimer-=dt;
+  if(ebfsTimer<=0){ ebfsTimer=0.45; const n=bfsNext(ex,ey,px,py); etargetX=n.x; etargetY=n.y; }
+  const edx=etargetX-ex,edy=etargetY-ey,edist=Math.hypot(edx,edy);
+  if(edist>0.05){
+    eAngle=Math.atan2(edy,edx);
+    const es=eSpeed*dt;
+    if(!isWall(ex+edx/edist*es+0.2,ey)&&!isWall(ex+edx/edist*es-0.2,ey)) ex+=edx/edist*es;
+    if(!isWall(ex,ey+edy/edist*es+0.2)&&!isWall(ex,ey+edy/edist*es-0.2)) ey+=edy/edist*es;
+  }
+
+  // Stars
+  for(const s of stars){
+    if(!s.collected&&Math.hypot(s.x-px,s.y-py)<0.6){
+      s.collected=true; score+=10*level; playCollect();
+      showMsg('+'+10*level+'🌟');
+      updateUI();
+    }
+    s.bob+=dt*2.5;
+  }
+  if(stars.every(s=>s.collected)){
+    if(level<3){ playWin(); showMsg('🎉 LEVEL '+(level+1)+'!\nRun faster!'); startLevel(level+1); }
+    else{ playWin(); running=false; endGame(true); }
+    return;
+  }
+
+  // Puppet catches player
+  const catchDist=Math.hypot(ex-px,ey-py);
+  if(catchDist<0.55&&invince<=0){
+    lives--; invince=2.5; playCaught(); playStinger();
+    showMsg('💥 CAUGHT!\n'+lives+' ❤️ left'); updateUI();
+    if(lives<=0){ running=false; endGame(false); return; }
+    // Teleport player away from puppet
+    const a=Math.atan2(py-ey,px-ex);
+    for(let r=0.5;r<5;r+=0.5){
+      const nx=px+Math.cos(a)*r,ny=py+Math.sin(a)*r;
+      if(!isWall(nx,ny)){ px=nx; py=ny; break; }
+    }
+  }
+
+  // Danger
+  const danger=Math.max(0,1-catchDist/5);
+  document.getElementById('danger').style.opacity=danger*0.7+'';
+  nearTimer-=dt;
+  if(catchDist<4&&nearTimer<=0){ nearTimer=1.2+Math.random()*0.8; playNear(); }
+}
+
+// ── DDA RAYCASTER ─────────────────────────────────────────────────────────
+function castRay(angle){
+  const cosA=Math.cos(angle),sinA=Math.sin(angle);
+  let mapX=Math.floor(px),mapY=Math.floor(py);
+  const dDX=cosA===0?1e30:Math.abs(1/cosA), dDY=sinA===0?1e30:Math.abs(1/sinA);
+  let stepX,stepY,sideX,sideY;
+  if(cosA<0){stepX=-1;sideX=(px-mapX)*dDX;}else{stepX=1;sideX=(mapX+1-px)*dDX;}
+  if(sinA<0){stepY=-1;sideY=(py-mapY)*dDY;}else{stepY=1;sideY=(mapY+1-py)*dDY;}
+  let side=0;
+  for(let i=0;i<64;i++){
+    if(sideX<sideY){sideX+=dDX;mapX+=stepX;side=0;}
+    else{sideY+=dDY;mapY+=stepY;side=1;}
+    if(mapX<0||mapX>=MAP_W||mapY<0||mapY>=MAP_H) return {dist:64,side,mx:mapX,my:mapY};
+    if(MAP[mapY][mapX]!==0) break;
+  }
+  const dist=side===0?(mapX-px+(1-stepX)/2)/cosA:(mapY-py+(1-stepY)/2)/sinA;
+  return {dist:Math.max(0.1,dist),side,mx:mapX,my:mapY};
+}
+
+// ── DRAW SCENE ────────────────────────────────────────────────────────────
+function drawScene(){
+  const W2=W,H2=H;
+
+  // Ceiling - dark Freddy's style
+  const ceilGrad=ctx.createLinearGradient(0,0,0,H2/2);
+  ceilGrad.addColorStop(0,'#0a0508'); ceilGrad.addColorStop(1,'#1a0a12');
+  ctx.fillStyle=ceilGrad; ctx.fillRect(0,0,W2,H2/2);
+
+  // Floor - pizzeria tiles
+  const floorGrad=ctx.createLinearGradient(0,H2/2,0,H2);
+  floorGrad.addColorStop(0,'#3a1010'); floorGrad.addColorStop(1,'#1a0808');
+  ctx.fillStyle=floorGrad; ctx.fillRect(0,H2/2,W2,H2/2);
+
+  const numRays=Math.floor(W2/1.2);
+  const zBuf=new Float32Array(numRays);
+
+  // Cast rays
+  for(let i=0;i<numRays;i++){
+    const ra=pAngle-FOV/2+(i/numRays)*FOV;
+    const {dist,side,mx,my}=castRay(ra);
+    const perp=Math.max(0.15,dist*Math.cos(ra-pAngle));
+    zBuf[i]=perp;
+    const wallH=Math.min(H2*3,H2/perp);
+    const top=(H2-wallH)/2;
+    const bright=Math.max(0,Math.min(1,1-perp/14))*(side?0.65:1);
+    const [r,g,b]=wallColor(mx,my,side);
+    ctx.fillStyle=`rgb(${Math.floor(r*bright)},${Math.floor(g*bright)},${Math.floor(b*bright)})`;
+    ctx.fillRect(i*W2/numRays,top,Math.ceil(W2/numRays)+1,wallH);
+  }
+
+  // ── SPRITES ──────────────────────────────────────────────────────────────
+  const sprites=[];
+
+  // Stars
+  for(const s of stars){
+    if(s.collected) continue;
+    sprites.push({type:'star',obj:s,dx:s.x-px,dy:s.y-py});
+  }
+
+  // Puppet
+  sprites.push({type:'puppet',dx:ex-px,dy:ey-py});
+
+  sprites.sort((a,b)=>(b.dx*b.dx+b.dy*b.dy)-(a.dx*a.dx+a.dy*a.dy));
+
+  for(const sp of sprites){
+    try{
+      const dx=sp.dx,dy=sp.dy;
+      const dist=Math.hypot(dx,dy);
+      if(dist<0.1) continue;
+      const sprAngle=Math.atan2(dy,dx);
+      let diff=sprAngle-pAngle;
+      while(diff>Math.PI) diff-=Math.PI*2;
+      while(diff<-Math.PI) diff+=Math.PI*2;
+      if(Math.abs(diff)>FOV*0.7) continue;
+      const screenX=((diff/FOV)+0.5)*W2;
+      const col=Math.floor((screenX/W2)*numRays);
+      if(col<0||col>=numRays||zBuf[col]<dist) continue;
+
+      if(sp.type==='star'){
+        const sH=Math.min(H2*0.6,H2/dist*0.5);
+        const bob=Math.sin(sp.obj.bob)*8;
+        ctx.save();
+        ctx.shadowColor='#ffd700'; ctx.shadowBlur=18;
+        ctx.font=`${Math.max(10,sH*0.8)}px serif`;
+        ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText('🌟',screenX,H2/2+bob);
+        if(dist<1.5){
+          ctx.fillStyle='#ffd700'; ctx.font=`bold ${Math.max(8,sH*0.2)}px Fredoka One,sans-serif`;
+          ctx.fillText('+'+10*level,screenX,H2/2-sH*0.55);
+        }
+        ctx.restore();
+      } else if(sp.type==='puppet'){
+        drawPuppetSprite(screenX,H2,dist,zBuf,numRays,W2);
+      }
+    }catch(e){}
+  }
+
+  // Vignette
+  const vig=ctx.createRadialGradient(W2/2,H2/2,H2*0.25,W2/2,H2/2,H2*0.85);
+  vig.addColorStop(0,'rgba(0,0,0,0)'); vig.addColorStop(1,'rgba(0,0,0,0.6)');
+  ctx.fillStyle=vig; ctx.fillRect(0,0,W2,H2);
+
+  // Mr Cupcake HUD arms/body at bottom
+  drawCupcakeHUD();
+}
+
+function drawPuppetSprite(screenX,H2,dist,zBuf,numRays,W2){
+  const sH=Math.min(H2*1.4,H2/dist*1.0);
+  const sW=sH*0.7;
+  const sTop=H2/2-sH*0.55;
+  const s=sH*0.5;
+  ctx.save();
+  ctx.translate(screenX,sTop+s);
+
+  // Clip check - don't draw if mostly behind wall
+  const colL=Math.floor(((screenX-sW/2)/W2)*numRays);
+  const colR=Math.floor(((screenX+sW/2)/W2)*numRays);
+  let visible=false;
+  for(let c=Math.max(0,colL);c<=Math.min(numRays-1,colR);c+=4){ if(zBuf[c]>=dist-0.1) visible=true; }
+  if(!visible){ ctx.restore(); return; }
+
+  const scaleF=1/dist;
+
+  // Shadow on floor
+  ctx.fillStyle='rgba(0,0,0,0.35)';
+  ctx.beginPath(); ctx.ellipse(0,s*1.5,s*0.6,s*0.15,0,0,Math.PI*2); ctx.fill();
+
+  // Strings
+  ctx.strokeStyle='rgba(200,200,200,0.3)'; ctx.lineWidth=1;
+  for(const sx2 of [-s*.25,0,s*.25]){
+    ctx.beginPath(); ctx.moveTo(sx2,-s*1.4); ctx.lineTo(sx2,-s*0.4); ctx.stroke();
+  }
+
+  // Body - long dark endoskeleton
+  ctx.strokeStyle='#2a2a2a'; ctx.lineWidth=s*0.18; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(0,-s*0.4); ctx.lineTo(0,s*0.7); ctx.stroke();
+  ctx.lineWidth=s*0.07;
+  for(let r=0;r<3;r++){
+    const ry=-s*0.15+r*s*0.25;
+    ctx.beginPath(); ctx.moveTo(0,ry); ctx.quadraticCurveTo(-s*.45,ry-s*.04,-s*.5,ry+s*.05); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,ry); ctx.quadraticCurveTo(s*.45,ry-s*.04,s*.5,ry+s*.05); ctx.stroke();
+  }
+  // Arms reaching
+  ctx.lineWidth=s*0.14;
+  ctx.beginPath(); ctx.moveTo(-s*.08,s*.05); ctx.quadraticCurveTo(-s*.6,s*.25,-s*.8,s*.0); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(s*.08,s*.05); ctx.quadraticCurveTo(s*.6,s*.25,s*.8,s*.0); ctx.stroke();
+  // Striped legs
+  ctx.lineWidth=s*0.16;
+  ctx.beginPath(); ctx.moveTo(-s*.1,s*.7); ctx.lineTo(-s*.15,s*1.3); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(s*.1,s*.7); ctx.lineTo(s*.15,s*1.3); ctx.stroke();
+  ctx.strokeStyle='#cc44ff'; ctx.lineWidth=s*0.06;
+  for(let i=0;i<3;i++){
+    const ly=s*.8+i*s*.17;
+    ctx.beginPath(); ctx.moveTo(-s*.11,ly); ctx.lineTo(-s*.17,ly); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(s*.11,ly); ctx.lineTo(s*.17,ly); ctx.stroke();
+  }
+
+  // WHITE HEAD
+  ctx.shadowColor='#cc44ff'; ctx.shadowBlur=dist<2?20:8;
+  ctx.fillStyle='#e8e8e8';
+  ctx.beginPath(); ctx.ellipse(0,-s*.65,s*.38,s*.46,0,0,Math.PI*2); ctx.fill();
+  ctx.shadowBlur=0;
+
+  // Purple cheeks
+  ctx.fillStyle='#8844aa';
+  ctx.beginPath(); ctx.ellipse(-s*.24,-s*.58,s*.1,s*.06,-0.3,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(s*.24,-s*.58,s*.1,s*.06,0.3,0,Math.PI*2); ctx.fill();
+
+  // Red nose
+  ctx.fillStyle='#cc2222'; ctx.beginPath(); ctx.arc(0,-s*.63,s*.055,0,Math.PI*2); ctx.fill();
+
+  // Eyes - angular and hungry
+  ctx.fillStyle='#111';
+  ctx.beginPath(); ctx.moveTo(-s*.22,-s*.8); ctx.lineTo(-s*.07,-s*.8); ctx.lineTo(-s*.07,-s*.7); ctx.lineTo(-s*.22,-s*.74); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(s*.22,-s*.8); ctx.lineTo(s*.07,-s*.8); ctx.lineTo(s*.07,-s*.7); ctx.lineTo(s*.22,-s*.74); ctx.closePath(); ctx.fill();
+
+  // Wide open hungry mouth
+  ctx.fillStyle='#111';
+  ctx.beginPath(); ctx.ellipse(0,-s*.5,s*.2,s*.13,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#ddd';
+  for(let t=-2;t<=2;t++){
+    ctx.beginPath();
+    ctx.moveTo(t*s*.07-s*.035,-s*.44); ctx.lineTo(t*s*.07,-s*.38); ctx.lineTo(t*s*.07+s*.035,-s*.44);
+    ctx.closePath(); ctx.fill();
+  }
+
+  // Red cheek dots
+  ctx.fillStyle='#cc2222';
+  ctx.beginPath(); ctx.arc(-s*.26,-s*.6,s*.035,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(s*.26,-s*.6,s*.035,0,Math.PI*2); ctx.fill();
+
+  // Distance warning
+  if(dist<2){
+    ctx.fillStyle=`rgba(255,0,0,${(1-dist/2)*0.4})`;
+    ctx.fillRect(-sW/2,-sH*0.6,sW,sH*1.2);
+  }
+
+  ctx.restore();
+}
+
+// ── MR CUPCAKE HUD ────────────────────────────────────────────────────────
+function drawCupcakeHUD(){
+  const W2=W,H2=H;
+  const bob=Math.sin(bobTime*5)*3;
+  const s=Math.min(70,H2*0.13);
+  ctx.save();
+  ctx.translate(W2/2,H2-8+bob);
+
+  // Wrapper
+  const wg=ctx.createLinearGradient(-s*.5,0,s*.5,s*.65);
+  wg.addColorStop(0,'#8B4513'); wg.addColorStop(1,'#4a1a00');
+  ctx.fillStyle=wg;
+  ctx.beginPath(); ctx.moveTo(-s*.5,-s*.05); ctx.lineTo(-s*.38,s*.65); ctx.lineTo(s*.38,s*.65); ctx.lineTo(s*.5,-s*.05); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='#6B3410'; ctx.lineWidth=1;
+  for(let l=-2;l<=2;l++){ ctx.beginPath(); ctx.moveTo(l*s*.11,-s*.05); ctx.lineTo(l*s*.08,s*.65); ctx.stroke(); }
+
+  // Frosting
+  const fg=ctx.createRadialGradient(-s*.1,-s*.2,s*.03,0,-s*.1,s*.5);
+  fg.addColorStop(0,'#ffaabb'); fg.addColorStop(.5,'#dd5577'); fg.addColorStop(1,'#aa2244');
+  ctx.fillStyle=fg; ctx.beginPath(); ctx.arc(0,-s*.05,s*.5,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#cc4466';
+  for(let d=-1;d<=1;d++){ ctx.beginPath(); ctx.ellipse(d*s*.2,s*.18,s*.06,s*.08,0,0,Math.PI*2); ctx.fill(); }
+
+  // Eyes
+  ctx.fillStyle='#111';
+  ctx.beginPath(); ctx.ellipse(-s*.18,-s*.14,s*.12,s*.14,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(s*.18,-s*.14,s*.12,s*.14,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#fff';
+  ctx.beginPath(); ctx.ellipse(-s*.18,-s*.14,s*.08,s*.09,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(s*.18,-s*.14,s*.08,s*.09,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#cc8822';
+  ctx.beginPath(); ctx.arc(-s*.17,-s*.13,s*.05,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(s*.19,-s*.13,s*.05,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#000';
+  ctx.beginPath(); ctx.arc(-s*.17,-s*.13,s*.027,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(s*.19,-s*.13,s*.027,0,Math.PI*2); ctx.fill();
+  // Scared eyes when puppet close
+  const catchD=Math.hypot(ex-px,ey-py);
+  if(catchD<3){
+    ctx.fillStyle='rgba(255,0,0,0.6)';
+    ctx.beginPath(); ctx.ellipse(-s*.18,-s*.14,s*.12,s*.14,0,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(s*.18,-s*.14,s*.12,s*.14,0,0,Math.PI*2); ctx.fill();
+  }
+  // Mouth
+  ctx.strokeStyle='#330000'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.arc(0,s*.04,s*.07,0.2,Math.PI-0.2); ctx.stroke();
+  // Teeth
+  ctx.fillStyle='#fff';
+  ctx.fillRect(-s*.06,s*.04,s*.05,s*.065); ctx.fillRect(s*.01,s*.04,s*.05,s*.065);
+  // Candle
+  ctx.fillStyle='#88aa44'; ctx.fillRect(-s*.03,-s*.72,s*.055,s*.28);
+  ctx.fillStyle='#ffaa00'; ctx.shadowColor='#ff6600'; ctx.shadowBlur=6;
+  ctx.beginPath(); ctx.moveTo(0,-s*.83); ctx.quadraticCurveTo(s*.06,-s*.75,0,-s*.64); ctx.quadraticCurveTo(-s*.06,-s*.75,0,-s*.83); ctx.fill();
+  ctx.shadowBlur=0;
+
+  ctx.restore();
+}
+
+// ── MINIMAP ────────────────────────────────────────────────────────────────
+function drawMinimap(){
+  const mW=mm.width, mH=mm.height;
+  const tW=mW/MAP_W, tH=mH/MAP_H;
+  mCtx.fillStyle='#0a0508'; mCtx.fillRect(0,0,mW,mH);
+  for(let r=0;r<MAP_H;r++){
+    for(let c=0;c<MAP_W;c++){
+      if(MAP[r][c]===1){
+        mCtx.fillStyle='#3a1208'; mCtx.fillRect(c*tW,r*tH,tW,tH);
+      }
+    }
+  }
+  // Stars
+  for(const s of stars){
+    if(s.collected) continue;
+    mCtx.fillStyle='#ffd700';
+    mCtx.fillRect(s.x*tW-1.5,s.y*tH-1.5,3,3);
+  }
+  // Puppet
+  mCtx.fillStyle='#cc44ff';
+  mCtx.beginPath(); mCtx.arc(ex*tW,ey*tH,3,0,Math.PI*2); mCtx.fill();
+  // Player
+  mCtx.fillStyle='#ff6699';
+  mCtx.beginPath(); mCtx.arc(px*tW,py*tH,3,0,Math.PI*2); mCtx.fill();
+  // FOV lines
+  mCtx.strokeStyle='rgba(255,200,50,0.3)'; mCtx.lineWidth=1;
+  const fovLen=6;
+  for(const a of [pAngle-FOV/2,pAngle+FOV/2]){
+    mCtx.beginPath(); mCtx.moveTo(px*tW,py*tH);
+    mCtx.lineTo((px+Math.cos(a)*fovLen)*tW,(py+Math.sin(a)*fovLen)*tH); mCtx.stroke();
+  }
+}
+
+// ── UI ─────────────────────────────────────────────────────────────────────
+function updateUI(){
+  document.getElementById('score-txt').textContent='🧁 '+score;
+  document.getElementById('level-txt').textContent='🎁 LEVEL '+level;
+  document.getElementById('lives-txt').textContent='❤️'.repeat(Math.max(0,lives));
+}
+function showMsg(t){ const el=document.getElementById('msg'); el.textContent=t; el.style.opacity='1'; clearTimeout(msgTimer); msgTimer=setTimeout(()=>el.style.opacity='0',2200); }
+function endGame(win){
+  const ov=document.getElementById('overlay');
+  HS.showGameOver({
+    key:'puppet_chase_fp', score, overlayEl:ov,
+    title: win ? '🏆 YOU ESCAPED!' : '💀 EATEN!',
+    subtitle: win ? 'Mr. Cupcake outran The Puppet!' : 'The Puppet had his feast...',
+    btnLabel: win ? '▶ PLAY AGAIN' : '▶ TRY AGAIN',
+    onRestart:()=>{ ea(); score=0; lives=3; startLevel(1); running=true; },
+    hiColor:'#ffd700',
+    titleStyle:"font-family:'Creepster',cursive;font-size:clamp(1.8rem,6vw,3rem);color:#ffd700;text-shadow:0 0 30px #cc8800;letter-spacing:2px;text-align:center;margin-bottom:8px",
+    btnClass:'btn'
+  });
+}
+
+// ── LOOP ──────────────────────────────────────────────────────────────────
+function loop(now){
+  const dt=Math.min((now-lastTime)/1000,0.05); lastTime=now;
+  try{ update(dt); drawScene(); drawMinimap(); }catch(e){ console.error(e); }
+  requestAnimationFrame(loop);
+}
+
+document.getElementById('startBtn').addEventListener('click',()=>{
+  ea(); document.getElementById('overlay').style.display='none';
+  startLevel(1); running=true;
+  canvas.requestPointerLock?.().catch(()=>{});
+});
+
+requestAnimationFrame(t=>{ lastTime=t; requestAnimationFrame(loop); });
+</script>
+</body>
+</html>

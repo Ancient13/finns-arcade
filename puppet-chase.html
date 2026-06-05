@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Puppet Chases Mr. Cupcake!</title>
+<script src="leaderboard.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Creepster&family=Fredoka+One&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#0a0a1a; overflow:hidden; touch-action:none; user-select:none; font-family:'Fredoka One',cursive; }
+  canvas { display:block; margin:0 auto; }
+
+  #ui {
+    position:fixed; top:0; left:0; right:0;
+    display:flex; justify-content:space-between; align-items:center;
+    padding:8px 14px; z-index:10; pointer-events:none;
+    background:linear-gradient(180deg,rgba(0,0,0,0.85),transparent);
+  }
+  .pill {
+    background:rgba(0,0,0,0.7); border-radius:20px; padding:4px 14px;
+    font-size:1rem; letter-spacing:1px;
+  }
+  #score-txt { color:#ffd700; border:1.5px solid #ffd70055; }
+  #level-txt { color:#cc44ff; border:1.5px solid #cc44ff55; }
+  #lives-txt { color:#ff4455; border:1.5px solid #ff445555; }
+
+  /* Danger flash */
+  #danger { position:fixed; inset:0; pointer-events:none; z-index:8; opacity:0; background:radial-gradient(ellipse at center, transparent 40%, #ff000066 100%); transition:opacity 0.15s; }
+
+  /* Joystick */
+  #joy-zone { position:fixed; bottom:24px; left:24px; width:120px; height:120px; z-index:15; pointer-events:all; }
+  #joy-base { width:120px; height:120px; border-radius:50%; background:rgba(255,255,255,0.07); border:2px solid rgba(255,200,50,0.35); position:absolute; }
+  #joy-knob { width:46px; height:46px; border-radius:50%; background:radial-gradient(circle at 35% 35%,#ffee88,#cc8800); border:2px solid #ffd700; position:absolute; top:37px; left:37px; box-shadow:0 0 12px #ffd70088; }
+
+  #msg {
+    position:fixed; top:40%; left:50%; transform:translate(-50%,-50%);
+    font-family:'Creepster',cursive; font-size:2rem; color:#ffd700;
+    text-shadow:0 0 20px #ff8800; white-space:pre-line;
+    pointer-events:none; opacity:0; transition:opacity 0.3s; z-index:20;
+    text-align:center; background:rgba(0,0,0,0.65); padding:10px 22px; border-radius:12px;
+  }
+
+  #overlay {
+    position:fixed; inset:0; z-index:30;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:rgba(0,0,0,0.93);
+  }
+  #overlay h1 { font-family:'Creepster',cursive; font-size:clamp(2rem,7vw,3.5rem); color:#cc44ff; text-shadow:0 0 30px #8800cc; letter-spacing:2px; text-align:center; margin-bottom:8px; }
+  #overlay p { color:#888; font-size:0.9rem; margin:3px 0; text-align:center; letter-spacing:1px; }
+  .btn { margin-top:20px; padding:12px 40px; font-family:'Creepster',cursive; font-size:1.8rem; letter-spacing:2px; color:#ffd700; border:2px solid #ffd700; background:transparent; border-radius:6px; cursor:pointer; box-shadow:0 0 20px #ffd70033; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="danger"></div>
+<div id="ui">
+  <div class="pill" id="score-txt">🧁 0</div>
+  <div class="pill" id="level-txt">🎁 LEVEL 1</div>
+  <div class="pill" id="lives-txt">❤️❤️❤️</div>
+</div>
+<div id="joy-zone"><div id="joy-base"></div><div id="joy-knob"></div></div>
+<div id="msg"></div>
+
+<div id="overlay">
+  <h1>🎁 THE PUPPET<br>HUNGERS 🧁</h1>
+  <p style="color:#cc88ff;font-size:1rem;margin-bottom:6px;">The Puppet wants to EAT Mr. Cupcake!</p>
+  <p>Run away! Collect 🌟 stars to score points!</p>
+  <p style="color:#ff6644;font-weight:900;margin-top:6px;">⚠️ Don't let The Puppet catch you!</p>
+  <p style="color:#555;margin-top:10px;font-size:0.82rem;">Joystick / Arrow keys = move Mr. Cupcake</p>
+  <button class="btn" id="startBtn">▶ RUN MR. CUPCAKE!</button>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H;
+function resize(){ W=window.innerWidth; H=window.innerHeight; canvas.width=W; canvas.height=H; }
+resize(); window.addEventListener('resize', resize);
+
+// ── AUDIO ─────────────────────────────────────────────────────────────────
+let ac=null;
+function ea(){ if(!ac) ac=new(window.AudioContext||window.webkitAudioContext)(); if(ac.state==='suspended') ac.resume(); }
+function beep(f,type,dur,vol=0.2,slide=null){
+  try{ ea(); const o=ac.createOscillator(),g=ac.createGain(); o.type=type;
+    o.frequency.setValueAtTime(f,ac.currentTime); if(slide) o.frequency.exponentialRampToValueAtTime(slide,ac.currentTime+dur);
+    g.gain.setValueAtTime(vol,ac.currentTime); g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+dur);
+    o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime+dur+0.01);
+  }catch(e){}
+}
+function playCollect(){ [880,1100,1320].forEach((f,i)=>setTimeout(()=>beep(f,'sine',0.1,0.22),i*55)); }
+function playCaught(){ beep(200,'sawtooth',0.6,0.4,40); }
+function playWin(){ [523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,'sine',0.18,0.28),i*90)); }
+function playNear(){ beep(150,'square',0.08,0.12,80); }
+
+// ── MAP ────────────────────────────────────────────────────────────────────
+const TILE=44, COLS=25, ROWS=19;
+// 0=floor 1=wall
+// FNAF1 accurate map - same layout used in helpy-run
+// 0=floor 1=wall  (25 cols x 19 rows)
+// Rooms: Show Stage, Dining, Backstage, Pirate Cove, Kitchen,
+//        Restrooms, W.Hall, W.Hall Corner, Supply Closet,
+//        E.Hall, E.Hall Corner, Party Rooms 1-4, Office
+const FNAF1_MAP = [
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  [1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,1,0,0,1],
+  [1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+];
+
+// Room label positions [col, row, label, emoji]
+const ROOM_LABELS = [
+  [4,  2,  'SHOW STAGE',   '🎤'],
+  [11, 5,  'DINING AREA',  '🍕'],
+  [2,  7,  'BACKSTAGE',    '🎭'],
+  [20, 3,  'PIRATE COVE',  '🏴‍☠️'],
+  [21, 7,  'KITCHEN',      '🍳'],
+  [21, 13, 'E. HALL',      '🚶'],
+  [2,  13, 'W. HALL',      '🚶'],
+  [11, 15, 'PARTY RMS',    '🎂'],
+  [2,  17, 'OFFICE',       '📷'],
+];
+
+const MAP_TEMPLATES = [FNAF1_MAP, FNAF1_MAP, FNAF1_MAP];
+
+function loadMap(lvl){
+  map=MAP_TEMPLATES[Math.min(lvl-1,MAP_TEMPLATES.length-1)].map(r=>[...r]);
+  mapH=map.length; mapW=map[0].length;
+}
+
+function isFree(x,y,r=18){
+  // accepts screen coords
+  const ox=mapOffX(), oy=mapOffY();
+  const pts=[[x-r,y],[x+r,y],[x,y-r],[x,y+r]];
+  return pts.every(([sx,sy])=>{
+    const c=Math.floor((sx-ox)/TILE), ro=Math.floor((sy-oy)/TILE);
+    return c>=0&&c<mapW&&ro>=0&&ro<mapH&&map[ro]&&map[ro][c]===0;
+  });
+}
+
+// Map offset to centre on screen
+function mapOffX(){ return (W-mapW*TILE)/2; }
+function mapOffY(){ return (H-mapH*TILE)/2; }
+
+// ── GAME STATE ─────────────────────────────────────────────────────────────
+let score=0, lives=3, level=1, running=false;
+let stars=[], particles=[], invince=0, msgTimer=null;
+let puppetWarn=false;
+
+// Mr. Cupcake (player)
+let cx=0, cy=0, cfx=1, cbob=0, cframe=0;
+const CSPD=170;
+
+// The Puppet (enemy)
+let px=0, py=0, pangle=0, pframe=0, pbfsTimer=0, ptargetX=0, ptargetY=0;
+let pspeed=0;
+
+// Joystick
+const jZone=document.getElementById('joy-zone'), jKnob=document.getElementById('joy-knob');
+let jActive=false, jTouchId=null, jx=0, jy=0;
+function jSet(ex,ey){
+  const r=jZone.getBoundingClientRect();
+  const ox=ex-r.left-60,oy=ey-r.top-60;
+  const d=Math.min(36,Math.hypot(ox,oy)); const a=Math.atan2(oy,ox);
+  jx=Math.cos(a)*d/36; jy=Math.sin(a)*d/36;
+  jKnob.style.left=(37+jx*36)+'px'; jKnob.style.top=(37+jy*36)+'px'; jActive=true;
+}
+function jClear(){ jActive=false; jx=0; jy=0; jKnob.style.left='37px'; jKnob.style.top='37px'; }
+jZone.addEventListener('touchstart',e=>{ e.preventDefault();const t=e.changedTouches[0];jTouchId=t.identifier;jSet(t.clientX,t.clientY); });
+jZone.addEventListener('touchmove', e=>{ e.preventDefault();for(const t of e.changedTouches)if(t.identifier===jTouchId)jSet(t.clientX,t.clientY); });
+jZone.addEventListener('touchend',  e=>{ e.preventDefault();jClear(); });
+jZone.addEventListener('mousedown', e=>jSet(e.clientX,e.clientY));
+window.addEventListener('mousemove',e=>{ if(jActive&&!jTouchId)jSet(e.clientX,e.clientY); });
+window.addEventListener('mouseup',  ()=>{ if(!jTouchId)jClear(); });
+
+const keys={};
+window.addEventListener('keydown',e=>{ keys[e.key]=true; if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault(); });
+window.addEventListener('keyup',  e=>keys[e.key]=false);
+
+// ── BFS PATHFINDING ────────────────────────────────────────────────────────
+function bfsNext(fx,fy,tx,ty){
+  const fc=Math.floor(fx/TILE),fr=Math.floor(fy/TILE);
+  const tc=Math.floor(tx/TILE),tr=Math.floor(ty/TILE);
+  if(fc===tc&&fr===tr) return {x:tx,y:ty};
+  const visited=new Set(),prev=new Map();
+  const q=[[fc,fr]]; visited.add(fc+','+fr);
+  while(q.length){
+    const [c,r]=q.shift();
+    if(c===tc&&r===tr){
+      let cur=c+','+r;
+      while(true){
+        const p=prev.get(cur); if(!p) break;
+        const [pc,pr]=p;
+        if(pc===fc&&pr===fr) return {x:c*TILE+TILE/2,y:r*TILE+TILE/2};
+        cur=pc+','+pr;
+      }
+      return {x:tc*TILE+TILE/2,y:tr*TILE+TILE/2};
+    }
+    for(const [dc,dr] of [[0,1],[0,-1],[1,0],[-1,0]]){
+      const nc=c+dc,nr=r+dr,key=nc+','+nr;
+      if(nc<0||nc>=mapW||nr<0||nr>=mapH||map[nr][nc]!==0||visited.has(key)) continue;
+      visited.add(key); prev.set(key,[c,r]); q.push([nc,nr]);
+    }
+  }
+  return {x:fx,y:fy};
+}
+
+// ── STARS ─────────────────────────────────────────────────────────────────
+function spawnStars(count=8){
+  stars=[];
+  let attempts=0;
+  while(stars.length<count&&attempts<500){
+    attempts++;
+    const c=1+Math.floor(Math.random()*(mapW-2));
+    const r=1+Math.floor(Math.random()*(mapH-2));
+    if(map[r][c]!==0) continue;
+    const sx=c*TILE+TILE/2+mapOffX(), sy=r*TILE+TILE/2+mapOffY();
+    if(Math.hypot(sx-cx,sy-cy)<TILE*2) continue;
+    stars.push({x:sx,y:sy,collected:false,bob:Math.random()*Math.PI*2,color:`hsl(${Math.floor(Math.random()*360)},100%,65%)`});
+  }
+}
+
+// ── START LEVEL ────────────────────────────────────────────────────────────
+function startLevel(lvl){
+  level=lvl; loadMap(lvl);
+  pspeed=55+lvl*18;
+  invince=0; pbfsTimer=0; particles=[];
+
+  const ox=mapOffX(), oy=mapOffY();
+  // Cupcake starts top-left open cell
+  // Mr Cupcake starts in the OFFICE (bottom-left)
+  cx=ox+TILE*2; cy=oy+TILE*17;
+  // Puppet starts on the SHOW STAGE (top-left) - his home!
+  px=ox+TILE*4; py=oy+TILE*2;
+  ptargetX=px; ptargetY=py;
+  pangle=Math.PI;
+
+  spawnStars(6+lvl*2);
+  updateUI();
+}
+
+// ── UPDATE ─────────────────────────────────────────────────────────────────
+let lastTime=0;
+function update(dt){
+  if(!running) return;
+  cbob+=dt*5; cframe+=dt*6; pframe+=dt*4;
+  invince=Math.max(0,invince-dt);
+
+  // Mr. Cupcake movement
+  let mx=0,my=0;
+  if(keys['ArrowLeft']||keys['a']) mx-=1;
+  if(keys['ArrowRight']||keys['d']) mx+=1;
+  if(keys['ArrowUp']||keys['w']) my-=1;
+  if(keys['ArrowDown']||keys['s']) my+=1;
+  if(jActive){ mx+=jx; my+=jy; }
+  const ml=Math.hypot(mx,my);
+  if(ml>0){
+    if(mx>0.1) cfx=1; else if(mx<-0.1) cfx=-1;
+    const nx=mx/ml,ny=my/ml,spd=CSPD*dt;
+    if(isFree(cx+nx*spd,cy)) cx+=nx*spd;
+    if(isFree(cx,cy+ny*spd)) cy+=ny*spd;
+  }
+  cx=Math.max(TILE*0.5+mapOffX(),Math.min((mapW-0.5)*TILE+mapOffX(),cx));
+  cy=Math.max(TILE*0.5+mapOffY(),Math.min((mapH-0.5)*TILE+mapOffY(),cy));
+
+  // Push out if stuck
+  if(!isFree(cx,cy)){
+    for(let r=10;r<80;r+=10){
+      let freed=false;
+      for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]]){
+        if(isFree(cx+dx*r,cy+dy*r)){ cx+=dx*r; cy+=dy*r; freed=true; break; }
+      }
+      if(freed) break;
+    }
+  }
+
+  // Puppet pathfinding (BFS every 0.4s)
+  pbfsTimer-=dt;
+  if(pbfsTimer<=0){
+    pbfsTimer=0.4;
+    // Convert screen coords to map coords
+    const ox=mapOffX(),oy=mapOffY();
+    const next=bfsNext(px-ox,py-oy,cx-ox,cy-oy);
+    ptargetX=next.x+ox; ptargetY=next.y+oy;
+  }
+  const pdx=ptargetX-px, pdy=ptargetY-py, pdist=Math.hypot(pdx,pdy);
+  if(pdist>2){
+    pangle=Math.atan2(pdy,pdx);
+    const spd2=pspeed*dt;
+    const ox=mapOffX(),oy=mapOffY();
+    const pnx=pdx/pdist,pny=pdy/pdist;
+    if(isFree(px+pnx*spd2,py,16)) px+=pnx*spd2;
+    if(isFree(px,py+pny*spd2,16)) py+=pny*spd2;
+  }
+
+  // Star collection
+  for(const s of stars){
+    if(!s.collected&&Math.hypot(s.x-cx,s.y-cy)<26){
+      s.collected=true; score+=10*level; playCollect();
+      spawnCollectParticles(s.x,s.y,s.color);
+      updateUI();
+    }
+    s.bob+=dt*2.5;
+  }
+
+  // All stars collected → next level
+  if(stars.every(s=>s.collected)){
+    if(level<3){ playWin(); showMsg('🎉 LEVEL '+(level+1)+'!\nRun faster!'); startLevel(level+1); }
+    else { playWin(); showMsg('🏆 YOU WIN!\nScore: '+score); endGame(true); }
+    return;
+  }
+
+  // Puppet catches cupcake
+  const catchDist=Math.hypot(px-cx,py-cy);
+  if(catchDist<34&&invince<=0){
+    lives--; invince=2.2; playCaught();
+    spawnCaughtParticles(cx,cy);
+    showMsg('💥 CAUGHT!\n'+lives+' ❤️ left');
+    updateUI();
+    if(lives<=0){ endGame(false); return; }
+    // Push cupcake away
+    const a=Math.atan2(cy-py,cx-px);
+    let pushed=false;
+    for(let dist=TILE*0.5;dist<=TILE*3&&!pushed;dist+=TILE*0.5){
+      const nx2=cx+Math.cos(a)*dist, ny2=cy+Math.sin(a)*dist;
+      if(isFree(nx2,ny2)){ cx=nx2; cy=ny2; pushed=true; }
+    }
+  }
+
+  // Danger warning
+  puppetWarn=catchDist<TILE*3;
+  document.getElementById('danger').style.opacity=puppetWarn?(1-catchDist/(TILE*3))*0.6+'':"0";
+  if(puppetWarn&&Math.floor(pframe*2)!==Math.floor((pframe-dt*4)*2)) playNear();
+
+  // Particles
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];
+    p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=150*dt; p.vx*=0.93;
+    p.life-=dt*2; if(p.life<=0) particles.splice(i,1);
+  }
+}
+
+function spawnCollectParticles(x,y,col){
+  for(let i=0;i<14;i++){
+    const a=Math.random()*Math.PI*2,sp=60+Math.random()*130;
+    particles.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-40,life:1,col,r:3+Math.random()*5});
+  }
+}
+function spawnCaughtParticles(x,y){
+  for(let i=0;i<20;i++){
+    const a=Math.random()*Math.PI*2,sp=50+Math.random()*180;
+    particles.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-60,life:1,col:Math.random()<0.5?'#ff4444':'#ffaa00',r:3+Math.random()*8});
+  }
+}
+
+// ── DRAW ──────────────────────────────────────────────────────────────────
+function draw(){
+  // Background
+  ctx.fillStyle='#08060f'; ctx.fillRect(0,0,W,H);
+
+  drawMap();
+  for(const s of stars) if(!s.collected) drawStar(s);
+  for(const p of particles){
+    ctx.save(); ctx.globalAlpha=Math.max(0,p.life);
+    ctx.fillStyle=p.col; ctx.shadowColor=p.col; ctx.shadowBlur=8;
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.r*p.life,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+  drawPuppet();
+  drawCupcake();
+}
+
+function drawMap(){
+  const ox=mapOffX(), oy=mapOffY();
+  for(let r=0;r<mapH;r++){
+    for(let c=0;c<mapW;c++){
+      const sx=ox+c*TILE, sy=oy+r*TILE;
+      if(map[r][c]===1){
+        // Fazbear brick wall - dark red/brown
+        ctx.fillStyle='#2a0a08';
+        ctx.fillRect(sx,sy,TILE,TILE);
+        const rowOff=(r%2===0)?0:TILE/2;
+        ctx.fillStyle='#3a1208';
+        if(TILE>12){
+          ctx.fillRect(sx+1+rowOff%TILE,sy+1,TILE/2-3,TILE/2-3);
+          ctx.fillRect(sx+1+(rowOff+TILE/2)%TILE,sy+TILE/2+1,TILE/2-3,TILE/2-3);
+        }
+        ctx.strokeStyle='#1a0604'; ctx.lineWidth=0.5;
+        ctx.strokeRect(sx,sy,TILE,TILE);
+      } else {
+        // Pizzeria checkered floor - classic red/cream
+        ctx.fillStyle=(c+r)%2===0?'#6a1010':'#c8a870';
+        ctx.fillRect(sx,sy,TILE,TILE);
+        ctx.strokeStyle=(c+r)%2===0?'#550a0a':'#aa8850'; ctx.lineWidth=0.5;
+        ctx.strokeRect(sx+0.5,sy+0.5,TILE-1,TILE-1);
+      }
+    }
+  }
+
+  // Room labels
+  if(TILE>=30){
+    ctx.save();
+    for(const [lc,lr,label,emoji] of ROOM_LABELS){
+      const sx=ox+lc*TILE, sy=oy+lr*TILE;
+      if(sx<-TILE*4||sx>W+TILE||sy<-TILE*2||sy>H+TILE) continue;
+      ctx.globalAlpha=0.5;
+      ctx.font=`bold ${Math.max(8,TILE*0.28)}px Arial`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillStyle='#fff';
+      ctx.fillText(emoji+' '+label, sx, sy);
+    }
+    ctx.restore();
+  }
+
+  // Map border
+  ctx.strokeStyle='rgba(150,30,10,0.5)'; ctx.lineWidth=2;
+  ctx.strokeRect(ox,oy,mapW*TILE,mapH*TILE);
+}
+
+function drawStar(s){
+  const bob=Math.sin(s.bob)*4;
+  ctx.save(); ctx.translate(s.x,s.y+bob);
+  ctx.shadowColor=s.color; ctx.shadowBlur=16;
+  ctx.font='24px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('🌟',0,0);
+  // Score label
+  ctx.shadowBlur=0; ctx.fillStyle=s.color;
+  ctx.font='bold 11px Fredoka One,sans-serif';
+  ctx.fillText('+'+10*level,0,-20);
+  ctx.restore();
+}
+
+// ── DRAW MR CUPCAKE ────────────────────────────────────────────────────────
+function drawCupcake(){
+  const flash=invince>0&&Math.floor(invince*8)%2===0;
+  if(flash) return;
+  const bob=Math.sin(cbob)*3;
+  const s=28; // scale
+  ctx.save(); ctx.translate(cx,cy+bob); ctx.scale(cfx,1);
+
+  // Shadow
+  ctx.fillStyle='rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(0,s+4,s*0.7,s*0.18,0,0,Math.PI*2); ctx.fill();
+
+  // Wrapper
+  const wg=ctx.createLinearGradient(-s*.5,s*.1,s*.5,s*.7);
+  wg.addColorStop(0,'#8B4513'); wg.addColorStop(1,'#4a1a00');
+  ctx.fillStyle=wg;
+  ctx.beginPath(); ctx.moveTo(-s*.5,s*.05); ctx.lineTo(-s*.38,s*.65); ctx.lineTo(s*.38,s*.65); ctx.lineTo(s*.5,s*.05); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='#6B3410'; ctx.lineWidth=1;
+  for(let l=-2;l<=2;l++){ ctx.beginPath(); ctx.moveTo(l*s*.11,s*.05); ctx.lineTo(l*s*.08,s*.65); ctx.stroke(); }
+
+  // Frosting
+  const fg=ctx.createRadialGradient(-s*.1,-s*.2,s*.03,0,-s*.1,s*.5);
+  fg.addColorStop(0,'#ffaabb'); fg.addColorStop(.5,'#dd5577'); fg.addColorStop(1,'#aa2244');
+  ctx.fillStyle=fg; ctx.beginPath(); ctx.arc(0,-s*.05,s*.5,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#cc4466';
+  for(let d=-1;d<=1;d++){ ctx.beginPath(); ctx.ellipse(d*s*.2,s*.18,s*.06,s*.09,0,0,Math.PI*2); ctx.fill(); }
+
+  // Eyes
+  ctx.fillStyle='#111';
+  ctx.beginPath(); ctx.ellipse(-s*.18,-s*.14,s*.13,s*.15,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(s*.18,-s*.14,s*.13,s*.15,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#fff';
+  ctx.beginPath(); ctx.ellipse(-s*.18,-s*.14,s*.08,s*.1,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(s*.18,-s*.14,s*.08,s*.1,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#cc8822';
+  ctx.beginPath(); ctx.arc(-s*.17,-s*.13,s*.055,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(s*.19,-s*.13,s*.055,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#000';
+  ctx.beginPath(); ctx.arc(-s*.17,-s*.13,s*.03,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(s*.19,-s*.13,s*.03,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#fff';
+  ctx.beginPath(); ctx.arc(-s*.13,-s*.16,s*.013,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(s*.23,-s*.16,s*.013,0,Math.PI*2); ctx.fill();
+
+  // Scared mouth (getting chased!)
+  const dist=Math.hypot(px-cx,py-cy);
+  ctx.strokeStyle='#330000'; ctx.lineWidth=1.5;
+  if(dist<TILE*3){
+    // scared open mouth
+    ctx.fillStyle='#111';
+    ctx.beginPath(); ctx.ellipse(0,s*.08,s*.1,s*.12,0,0,Math.PI*2); ctx.fill();
+  } else {
+    // happy smile
+    ctx.beginPath(); ctx.arc(0,s*.04,s*.08,0.2,Math.PI-0.2); ctx.stroke();
+  }
+
+  // Teeth
+  ctx.fillStyle='#fff';
+  ctx.fillRect(-s*.07,s*.04,s*.06,s*.07); ctx.fillRect(s*.01,s*.04,s*.06,s*.07);
+
+  // Candle
+  ctx.fillStyle='#88aa44'; ctx.fillRect(-s*.03,-s*.72,s*.06,s*.28);
+  ctx.fillStyle='#ffaa00'; ctx.shadowColor='#ff6600'; ctx.shadowBlur=8;
+  ctx.beginPath(); ctx.moveTo(0,-s*.84); ctx.quadraticCurveTo(s*.07,-s*.75,0,-s*.64); ctx.quadraticCurveTo(-s*.07,-s*.75,0,-s*.84); ctx.fill();
+  ctx.shadowBlur=0;
+
+  // Running legs
+  const run=Math.sin(cframe)*0.5;
+  ctx.fillStyle='#aa2244';
+  ctx.beginPath(); ctx.ellipse(-s*.12,s*.65+Math.sin(cframe)*s*.08,s*.07,s*.12,run,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(s*.12,s*.65+Math.sin(cframe+Math.PI)*s*.08,s*.07,s*.12,-run,0,Math.PI*2); ctx.fill();
+  // Feet
+  ctx.fillStyle='#880011';
+  ctx.beginPath(); ctx.ellipse(-s*.12,s*.8+Math.sin(cframe)*s*.08,s*.1,s*.05,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(s*.12,s*.8+Math.sin(cframe+Math.PI)*s*.08,s*.1,s*.05,0,0,Math.PI*2); ctx.fill();
+
+  ctx.restore();
+}
+
+// ── DRAW THE PUPPET ────────────────────────────────────────────────────────
+function drawPuppet(){
+  ctx.save(); ctx.translate(px,py); ctx.rotate(pangle+Math.PI/2);
+
+  const s=30;
+  const sway=Math.sin(pframe)*0.12;
+  ctx.rotate(sway);
+
+  // Shadow
+  ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(0,s*1.6,s*0.7,s*0.2,0,0,Math.PI*2); ctx.fill();
+
+  // Strings hanging up
+  ctx.strokeStyle='rgba(200,200,200,0.4)'; ctx.lineWidth=0.8;
+  for(const sx2 of [-s*.3,0,s*.3]){ ctx.beginPath(); ctx.moveTo(sx2,-s*1.8); ctx.lineTo(sx2,-s*0.5); ctx.stroke(); }
+
+  // Body (long dark endoskeleton)
+  ctx.strokeStyle='#333'; ctx.lineWidth=4; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(0,-s*.5); ctx.lineTo(0,s*.8); ctx.stroke();
+  // Ribs
+  ctx.lineWidth=2;
+  for(let r=0;r<3;r++){
+    const ry=-s*.2+r*s*.3;
+    ctx.beginPath(); ctx.moveTo(0,ry); ctx.quadraticCurveTo(-s*.5,ry-3,-s*.6,ry+5); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,ry); ctx.quadraticCurveTo(s*.5,ry-3,s*.6,ry+5); ctx.stroke();
+  }
+  // Striped legs
+  ctx.lineWidth=5;
+  ctx.beginPath(); ctx.moveTo(-s*.12,s*.8); ctx.lineTo(-s*.18,s*1.5); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(s*.12,s*.8); ctx.lineTo(s*.18,s*1.5); ctx.stroke();
+  // Stripe on legs
+  ctx.strokeStyle='#cc44ff'; ctx.lineWidth=2;
+  for(let i=0;i<4;i++){
+    const ly=s*.9+i*s*.15;
+    ctx.beginPath(); ctx.moveTo(-s*.14,ly); ctx.lineTo(-s*.2,ly); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(s*.14,ly); ctx.lineTo(s*.2,ly); ctx.stroke();
+  }
+
+  // Arms reaching (toward cupcake direction)
+  ctx.strokeStyle='#222'; ctx.lineWidth=4;
+  ctx.beginPath(); ctx.moveTo(-s*.1,s*.1); ctx.quadraticCurveTo(-s*.7,s*.3,-s*.9,s*.0); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(s*.1,s*.1); ctx.quadraticCurveTo(s*.7,s*.3,s*.9,s*.0); ctx.stroke();
+  // Claw hands
+  ctx.strokeStyle='#444'; ctx.lineWidth=1.5;
+  for(let f=0;f<3;f++){
+    const fa=-0.3+f*0.3;
+    ctx.beginPath(); ctx.moveTo(-s*.9,0); ctx.lineTo(-s*.9+Math.cos(fa-0.5)*s*.25,Math.sin(fa-0.5)*s*.25); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(s*.9,0); ctx.lineTo(s*.9+Math.cos(fa+Math.PI+0.5)*s*.25,Math.sin(fa+Math.PI+0.5)*s*.25); ctx.stroke();
+  }
+
+  // WHITE HEAD / FACE
+  ctx.fillStyle='#e8e8e8'; ctx.shadowColor='#cc44ff'; ctx.shadowBlur=10;
+  ctx.beginPath(); ctx.ellipse(0,-s*.75,s*.42,s*.52,0,0,Math.PI*2); ctx.fill();
+  ctx.shadowBlur=0;
+
+  // Purple cheek marks
+  ctx.fillStyle='#8844aa';
+  ctx.beginPath(); ctx.ellipse(-s*.28,-s*.65,s*.12,s*.07,-0.3,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(s*.28,-s*.65,s*.12,s*.07,0.3,0,Math.PI*2); ctx.fill();
+
+  // Red nose
+  ctx.fillStyle='#cc2222'; ctx.beginPath(); ctx.arc(0,-s*.72,s*.06,0,Math.PI*2); ctx.fill();
+
+  // Eyes (angular - hungry looking toward cupcake)
+  ctx.fillStyle='#111';
+  ctx.beginPath(); ctx.moveTo(-s*.25,-s*.88); ctx.lineTo(-s*.08,-s*.88); ctx.lineTo(-s*.08,-s*.78); ctx.lineTo(-s*.25,-s*.82); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(s*.25,-s*.88); ctx.lineTo(s*.08,-s*.88); ctx.lineTo(s*.08,-s*.78); ctx.lineTo(s*.25,-s*.82); ctx.closePath(); ctx.fill();
+
+  // HUNGRY grin (open wide - wants to eat!)
+  ctx.fillStyle='#111';
+  ctx.beginPath(); ctx.ellipse(0,-s*.58,s*.22,s*.14,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#fff';
+  for(let t=-2;t<=2;t++){
+    ctx.beginPath(); ctx.moveTo(t*s*.08-s*.04,-s*.5); ctx.lineTo(t*s*.08,-s*.44); ctx.lineTo(t*s*.08+s*.04,-s*.5); ctx.closePath(); ctx.fill();
+  }
+
+  // Red cheek dots
+  ctx.fillStyle='#cc2222';
+  ctx.beginPath(); ctx.arc(-s*.3,-s*.68,s*.04,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(s*.3,-s*.68,s*.04,0,Math.PI*2); ctx.fill();
+
+  ctx.restore();
+}
+
+// ── UI ─────────────────────────────────────────────────────────────────────
+function updateUI(){
+  document.getElementById('score-txt').textContent='🧁 '+score;
+  document.getElementById('level-txt').textContent='🎁 LEVEL '+level;
+  document.getElementById('lives-txt').textContent='❤️'.repeat(Math.max(0,lives));
+}
+function showMsg(t){ const el=document.getElementById('msg'); el.textContent=t; el.style.opacity='1'; clearTimeout(msgTimer); msgTimer=setTimeout(()=>el.style.opacity='0',2200); }
+
+function endGame(win){
+  running=false;
+  const ov=document.getElementById('overlay');
+  HS.showGameOver({
+    key:'puppet_chase', score, overlayEl:ov,
+    title: win ? '🏆 MR. CUPCAKE ESCAPED!' : '💀 EATEN!',
+    subtitle: win ? 'You outran The Puppet!' : 'The Puppet had his feast...',
+    btnLabel: win ? '▶ PLAY AGAIN' : '▶ TRY AGAIN',
+    onRestart:()=>{ ea(); score=0; lives=3; startLevel(1); running=true; },
+    hiColor:'#ffd700',
+    titleStyle:"font-family:'Creepster',cursive;font-size:clamp(1.8rem,6vw,3rem);color:#ffd700;text-shadow:0 0 30px #cc8800;letter-spacing:2px;text-align:center;margin-bottom:8px",
+    btnClass:'btn'
+  });
+}
+
+// ── LOOP ──────────────────────────────────────────────────────────────────
+function loop(now){
+  const dt=Math.min((now-lastTime)/1000,0.05); lastTime=now;
+  try{ update(dt); draw(); }catch(e){ console.error(e); }
+  requestAnimationFrame(loop);
+}
+
+document.getElementById('startBtn').addEventListener('click',()=>{
+  ea(); document.getElementById('overlay').style.display='none';
+  startLevel(1); running=true;
+});
+
+requestAnimationFrame(t=>{ lastTime=t; requestAnimationFrame(loop); });
+</script>
+</body>
+</html>

@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Turret Battle!</title>
+<script src="leaderboard.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Rajdhani:wght@600&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#000; overflow:hidden; font-family:'Rajdhani',sans-serif; user-select:none; touch-action:none; }
+  canvas { display:block; }
+
+  #ui {
+    position:fixed; top:0; left:0; right:0;
+    display:flex; justify-content:space-between; align-items:flex-start;
+    padding:10px 14px; pointer-events:none; z-index:10;
+  }
+  .player-hud {
+    display:flex; flex-direction:column; gap:4px; min-width:130px;
+  }
+  .player-hud.right { align-items:flex-end; }
+  .p-name {
+    font-family:'Orbitron',monospace; font-size:0.85rem; font-weight:900;
+    letter-spacing:2px;
+  }
+  .p1-name { color:#44ffaa; text-shadow:0 0 10px #44ffaa88; }
+  .p2-name { color:#ff6644; text-shadow:0 0 10px #ff664488; }
+  .p-score {
+    font-family:'Orbitron',monospace; font-size:1.6rem; font-weight:900;
+  }
+  .p1-score { color:#44ffaa; }
+  .p2-score { color:#ff6644; }
+  .hp-bar-bg {
+    height:8px; width:120px; background:rgba(255,255,255,0.15);
+    border-radius:4px; overflow:hidden;
+  }
+  .hp-bar { height:100%; border-radius:4px; transition:width 0.2s; }
+  .p1-hp { background:linear-gradient(90deg,#44ffaa,#00cc66); box-shadow:0 0 8px #44ffaa88; }
+  .p2-hp { background:linear-gradient(90deg,#ff4422,#ff6644); box-shadow:0 0 8px #ff664488; }
+  .ammo { font-size:0.75rem; letter-spacing:1px; color:#aaa; }
+
+  #centre-hud {
+    text-align:center; pointer-events:none;
+  }
+  #wave-txt {
+    font-family:'Orbitron',monospace; font-size:0.8rem; color:#ffcc44;
+    letter-spacing:3px; text-shadow:0 0 10px #ffcc4488;
+  }
+  #timer-txt {
+    font-family:'Orbitron',monospace; font-size:1.1rem; color:#fff;
+    letter-spacing:2px;
+  }
+
+  /* Controls overlay for mobile */
+  #controls-p1, #controls-p2 {
+    position:fixed; bottom:0; z-index:15; pointer-events:none;
+  }
+  #controls-p1 { left:0; width:48%; }
+  #controls-p2 { right:0; width:48%; }
+
+  .ctrl-row {
+    display:flex; align-items:center; justify-content:center;
+    gap:10px; padding:8px 0;
+  }
+  .ctrl-btn {
+    width:56px; height:56px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:1.4rem; font-weight:900;
+    border:2px solid; cursor:pointer; pointer-events:all;
+    -webkit-tap-highlight-color:transparent;
+    background:rgba(0,0,0,0.5); backdrop-filter:blur(4px);
+    transition:transform 0.08s, background 0.08s;
+    touch-action:manipulation;
+  }
+  .ctrl-btn:active { transform:scale(0.88); background:rgba(255,255,255,0.15); }
+  .p1-btn { border-color:#44ffaa88; color:#44ffaa; }
+  .p2-btn { border-color:#ff664488; color:#ff6644; }
+  .fire-btn { width:70px; height:70px; font-size:1.8rem; }
+
+  #overlay {
+    position:fixed; inset:0; z-index:30;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:rgba(0,0,10,0.92);
+  }
+  #overlay h1 {
+    font-family:'Orbitron',monospace; font-size:clamp(1.8rem,6vw,3rem);
+    font-weight:900; letter-spacing:4px; text-align:center;
+    background:linear-gradient(135deg,#44ffaa,#00aaff,#ff6644);
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+    margin-bottom:10px;
+  }
+  #overlay p { color:#888; font-size:0.95rem; margin:3px 0; text-align:center; letter-spacing:1px; }
+  .start-btn {
+    margin-top:22px; padding:14px 44px;
+    font-family:'Orbitron',monospace; font-size:1.2rem; font-weight:900;
+    letter-spacing:3px; background:linear-gradient(135deg,#006633,#44ffaa22);
+    color:#44ffaa; border:2px solid #44ffaa; border-radius:4px;
+    cursor:pointer; text-transform:uppercase;
+    box-shadow:0 0 20px #44ffaa44; transition:box-shadow 0.2s;
+  }
+  .start-btn:hover { box-shadow:0 0 40px #44ffaa88; }
+
+  #msg {
+    position:fixed; top:44%; left:50%; transform:translate(-50%,-50%);
+    font-family:'Orbitron',monospace; font-size:2rem; font-weight:900;
+    color:#ffcc44; text-shadow:0 0 30px #ffcc44;
+    pointer-events:none; opacity:0; transition:opacity 0.3s;
+    z-index:20; text-align:center; white-space:pre-line;
+  }
+
+  /* Split line */
+  #split-line {
+    position:fixed; top:0; bottom:0; left:50%;
+    width:2px; background:rgba(255,255,255,0.06);
+    pointer-events:none; z-index:5;
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="split-line"></div>
+
+<!-- HUD -->
+<div id="ui">
+  <div class="player-hud">
+    <div class="p-name p1-name">◀ P1 TURRET</div>
+    <div class="p-score p1-score" id="s1">0</div>
+    <div class="hp-bar-bg"><div class="hp-bar p1-hp" id="hp1" style="width:100%"></div></div>
+    <div class="ammo" id="ammo1">🔴🔴🔴🔴🔴</div>
+  </div>
+  <div id="centre-hud">
+    <div id="wave-txt">WAVE 1</div>
+    <div id="timer-txt">3:00</div>
+  </div>
+  <div class="player-hud right">
+    <div class="p-name p2-name">P2 TURRET ▶</div>
+    <div class="p-score p2-score" id="s2">0</div>
+    <div class="hp-bar-bg"><div class="hp-bar p2-hp" id="hp2" style="width:100%"></div></div>
+    <div class="ammo" id="ammo2">🔵🔵🔵🔵🔵</div>
+  </div>
+</div>
+
+<!-- Mobile controls P1 (left side) -->
+<div id="controls-p1">
+  <div class="ctrl-row">
+    <div class="ctrl-btn p1-btn" id="p1-left">◀</div>
+    <div class="ctrl-btn p1-btn fire-btn" id="p1-fire">🔥</div>
+    <div class="ctrl-btn p1-btn" id="p1-right">▶</div>
+  </div>
+  <div class="ctrl-row">
+    <div class="ctrl-btn p1-btn" id="p1-up">▲</div>
+    <div class="ctrl-btn p1-btn" id="p1-down">▼</div>
+  </div>
+</div>
+
+<!-- Mobile controls P2 (right side) -->
+<div id="controls-p2">
+  <div class="ctrl-row">
+    <div class="ctrl-btn p2-btn" id="p2-left">◀</div>
+    <div class="ctrl-btn p2-btn fire-btn" id="p2-fire">🔥</div>
+    <div class="ctrl-btn p2-btn" id="p2-right">▶</div>
+  </div>
+  <div class="ctrl-row">
+    <div class="ctrl-btn p2-btn" id="p2-up">▲</div>
+    <div class="ctrl-btn p2-btn" id="p2-down">▼</div>
+  </div>
+</div>
+
+<div id="msg"></div>
+
+<div id="overlay">
+  <h1>⚡ TURRET BATTLE ⚡</h1>
+  <p style="color:#44ffaa;">P1 = LEFT SIDE &nbsp;|&nbsp; P2 = RIGHT SIDE</p>
+  <p style="margin-top:8px;">Shoot down enemy planes · Score the most kills!</p>
+  <p style="color:#ff6644;margin-top:6px;font-weight:900;">⚠️ Planes that get through damage YOUR base!</p>
+  <p style="margin-top:12px;color:#666;">
+    P1: A/D=rotate · W/S=elevation · SPACE=fire<br>
+    P2: ←/→=rotate · ↑/↓=elevation · ENTER=fire<br>
+    <span style="color:#888;">or use the on-screen buttons</span>
+  </p>
+  <button class="start-btn" id="startBtn">▶ START BATTLE</button>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H;
+function resize(){ W=window.innerWidth; H=window.innerHeight; canvas.width=W; canvas.height=H; }
+resize(); window.addEventListener('resize', resize);
+
+// ── Audio ─────────────────────────────────────────────────────────────────
+let ac=null;
+function ensureAudio(){ if(!ac) ac=new(window.AudioContext||window.webkitAudioContext)(); if(ac.state==='suspended') ac.resume(); }
+function playShoot(freq=800){
+  try{
+    ensureAudio();
+    const o=ac.createOscillator(),g=ac.createGain();
+    o.type='square'; o.frequency.setValueAtTime(freq,ac.currentTime);
+    o.frequency.exponentialRampToValueAtTime(100,ac.currentTime+0.12);
+    g.gain.setValueAtTime(0.3,ac.currentTime); g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.15);
+    o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime+0.16);
+  }catch(e){}
+}
+function playExplosion(){
+  try{
+    ensureAudio();
+    const buf=ac.createBuffer(1,ac.sampleRate*0.4,ac.sampleRate);
+    const d=buf.getChannelData(0);
+    for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.exp(-i/d.length*8);
+    const src=ac.createBufferSource(),g=ac.createGain();
+    src.buffer=buf; g.gain.value=0.6;
+    const f=ac.createBiquadFilter(); f.type='lowpass'; f.frequency.value=400;
+    src.connect(f); f.connect(g); g.connect(ac.destination); src.start();
+  }catch(e){}
+}
+function playHit(){
+  try{
+    ensureAudio();
+    const o=ac.createOscillator(),g=ac.createGain();
+    o.type='sawtooth'; o.frequency.value=150;
+    g.gain.setValueAtTime(0.4,ac.currentTime); g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.3);
+    o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime+0.32);
+  }catch(e){}
+}
+
+// ── 3D Math ───────────────────────────────────────────────────────────────
+function project(x,y,z, cx,cy, fov=600){
+  // Simple perspective projection relative to a camera centre
+  const scale = fov/(fov+z);
+  return { sx: cx + x*scale, sy: cy + y*scale, scale };
+}
+
+// ── Game State ─────────────────────────────────────────────────────────────
+let score1=0, score2=0, hp1=100, hp2=100;
+let wave=1, gameTime=180, running=false, msgTimer=null;
+let planes=[], bullets=[], particles=[], explosions=[];
+let spawnTimer=0;
+
+const MAX_AMMO=5;
+let ammo1=MAX_AMMO, ammo2=MAX_AMMO;
+let reloadTimer1=0, reloadTimer2=0;
+
+// Turrets
+const turrets = [
+  { // Player 1 - left side
+    x:-200, y:0, z:0,  // world position
+    azimuth: 0.8,      // horizontal aim angle
+    elevation: 0.5,    // vertical aim angle (0=up, PI/2=horizontal)
+    color:'#44ffaa', darkColor:'#006633',
+    cx: ()=>W*0.25,    // screen centre for this player's view
+  },
+  { // Player 2 - right side
+    x:200, y:0, z:0,
+    azimuth: Math.PI-0.8,
+    elevation: 0.5,
+    color:'#ff6644', darkColor:'#661100',
+    cx: ()=>W*0.75,
+  }
+];
+
+// Controls
+const keys = {};
+window.addEventListener('keydown', e=>{ keys[e.key]=true; e.preventDefault(); });
+window.addEventListener('keyup',   e=>{ keys[e.key]=false; });
+
+// Touch controls
+function addTouch(id, key, key2){
+  const el=document.getElementById(id);
+  if(!el) return;
+  el.addEventListener('touchstart', e=>{ e.preventDefault(); keys[key]=true; if(key2) keys[key2]=true; });
+  el.addEventListener('touchend',   e=>{ e.preventDefault(); keys[key]=false; if(key2) keys[key2]=false; });
+  el.addEventListener('mousedown',  e=>{ keys[key]=true; if(key2) keys[key2]=true; });
+  el.addEventListener('mouseup',    e=>{ keys[key]=false; if(key2) keys[key2]=false; });
+}
+addTouch('p1-left',  'a');
+addTouch('p1-right', 'd');
+addTouch('p1-up',    'w');
+addTouch('p1-down',  's');
+addTouch('p1-fire',  ' ');
+addTouch('p2-left',  'ArrowLeft');
+addTouch('p2-right', 'ArrowRight');
+addTouch('p2-up',    'ArrowUp');
+addTouch('p2-down',  'ArrowDown');
+addTouch('p2-fire',  'Enter');
+
+// ── Plane types ───────────────────────────────────────────────────────────
+const PLANE_TYPES = [
+  { name:'FIGHTER',  hp:1, speed:1.4, size:1.0, pts:10, color:'#aaccff', engineColor:'#ff8800' },
+  { name:'BOMBER',   hp:3, speed:0.7, size:1.8, pts:30, color:'#88aacc', engineColor:'#ff4400' },
+  { name:'STEALTH',  hp:1, speed:2.2, size:0.8, pts:20, color:'#334455', engineColor:'#4444ff' },
+  { name:'JET',      hp:2, speed:2.8, size:0.9, pts:25, color:'#ccddff', engineColor:'#00ccff' },
+];
+
+function spawnPlane(){
+  const type = PLANE_TYPES[Math.floor(Math.random()*Math.min(PLANE_TYPES.length, 1+wave))];
+  // Spawn from sides/behind at altitude
+  const side = Math.random()<0.5?-1:1;
+  const altitude = -80 - Math.random()*120; // negative = up in screen
+  const depth = 200 + Math.random()*300;
+  
+  // Target either base
+  const targetX = (Math.random()<0.5 ? -1:1) * (150+Math.random()*100);
+  
+  planes.push({
+    x: side*(400+Math.random()*200),
+    y: altitude,
+    z: depth,
+    vx: -side * (type.speed*0.6 + Math.random()*0.3),
+    vy: (Math.random()-0.3)*0.3,
+    vz: -(type.speed*0.4),
+    type, hp:type.hp,
+    hit:false, hitFlash:0,
+    trail:[],
+    angle: Math.atan2(-side,0), // bank angle
+    bob: Math.random()*Math.PI*2,
+    targetX,
+  });
+}
+
+// ── Bullet ────────────────────────────────────────────────────────────────
+function fireBullet(playerIdx){
+  const t = turrets[playerIdx];
+  const spd = 18;
+  const bvx = Math.sin(t.azimuth)*Math.cos(t.elevation)*spd;
+  const bvy = -Math.sin(t.elevation)*spd;
+  const bvz = Math.cos(t.azimuth)*Math.cos(t.elevation)*spd;
+  bullets.push({
+    x: t.x+bvx*0.5, y: t.y+bvy*0.5-30, z: t.z+bvz*0.5+100,
+    vx:bvx, vy:bvy, vz:bvz,
+    owner:playerIdx,
+    life:1.2,
+    color: playerIdx===0?'#44ffaa':'#ff6644',
+  });
+  if(playerIdx===0){ ammo1--; playShoot(playerIdx===0?900:600); }
+  else { ammo2--; playShoot(600); }
+}
+
+// ── Particles ─────────────────────────────────────────────────────────────
+function boom(x,y,z){
+  playExplosion();
+  for(let i=0;i<20;i++){
+    const a=Math.random()*Math.PI*2, el=Math.random()*Math.PI;
+    const spd=2+Math.random()*4;
+    particles.push({
+      x,y,z,
+      vx:Math.cos(a)*Math.sin(el)*spd,
+      vy:Math.cos(el)*spd,
+      vz:Math.sin(a)*Math.sin(el)*spd,
+      life:1, maxLife:1,
+      color:`hsl(${20+Math.random()*40},100%,${50+Math.random()*30}%)`,
+      r: 3+Math.random()*6,
+    });
+  }
+}
+
+// ── Update ────────────────────────────────────────────────────────────────
+let lastTime=0;
+function update(dt){
+  if(!running) return;
+  gameTime-=dt;
+  if(gameTime<=0){ endGame(); return; }
+
+  // Wave progression
+  const newWave = Math.min(5, 1+Math.floor((180-gameTime)/40));
+  if(newWave>wave){ wave=newWave; showMsg('⚡ WAVE '+wave+'!'); updateUI(); }
+
+  // Ammo reload
+  if(ammo1<MAX_AMMO){ reloadTimer1-=dt; if(reloadTimer1<=0){ ammo1=Math.min(MAX_AMMO,ammo1+1); reloadTimer1=1.2; } }
+  if(ammo2<MAX_AMMO){ reloadTimer2-=dt; if(reloadTimer2<=0){ ammo2=Math.min(MAX_AMMO,ammo2+1); reloadTimer2=1.2; } }
+
+  // Turret controls
+  const ROT_SPD=1.8*dt, EL_SPD=1.4*dt;
+  const t1=turrets[0], t2=turrets[1];
+
+  if(keys['a']) t1.azimuth-=ROT_SPD;
+  if(keys['d']) t1.azimuth+=ROT_SPD;
+  if(keys['w']) t1.elevation=Math.max(0.05,t1.elevation-EL_SPD);
+  if(keys['s']) t1.elevation=Math.min(Math.PI/2-0.05,t1.elevation+EL_SPD);
+  if(keys[' '] && !keys['_fire1_prev'] && ammo1>0){ fireBullet(0); keys['_fire1_prev']=true; }
+  if(!keys[' ']) keys['_fire1_prev']=false;
+
+  if(keys['ArrowLeft'])  t2.azimuth-=ROT_SPD;
+  if(keys['ArrowRight']) t2.azimuth+=ROT_SPD;
+  if(keys['ArrowUp'])    t2.elevation=Math.max(0.05,t2.elevation-EL_SPD);
+  if(keys['ArrowDown'])  t2.elevation=Math.min(Math.PI/2-0.05,t2.elevation+EL_SPD);
+  if(keys['Enter'] && !keys['_fire2_prev'] && ammo2>0){ fireBullet(1); keys['_fire2_prev']=true; }
+  if(!keys['Enter']) keys['_fire2_prev']=false;
+
+  // Spawn planes
+  const spawnRate = Math.max(0.6, 2.5-wave*0.3);
+  spawnTimer-=dt;
+  if(spawnTimer<=0){ spawnTimer=spawnRate*(0.7+Math.random()*0.6); spawnPlane(); }
+
+  // Update planes
+  for(let i=planes.length-1;i>=0;i--){
+    const p=planes[i];
+    p.bob+=dt*1.2;
+    p.x+=p.vx*60*dt;
+    p.y+=p.vy*60*dt + Math.sin(p.bob)*0.4;
+    p.z+=p.vz*60*dt;
+    p.hitFlash=Math.max(0,p.hitFlash-dt*6);
+
+    // Steer toward target
+    const dx=p.targetX-p.x;
+    p.vx+=dx*0.0001;
+
+    // Trail
+    p.trail.push({x:p.x,y:p.y,z:p.z});
+    if(p.trail.length>12) p.trail.shift();
+
+    // Reached base (z < threshold)
+    if(p.z<-80){
+      boom(p.x,p.y,-80);
+      planes.splice(i,1);
+      // Damage the closer base
+      const d1=Math.abs(p.x-t1.x), d2=Math.abs(p.x-t2.x);
+      if(d1<d2){ hp1=Math.max(0,hp1-10); playHit(); }
+      else      { hp2=Math.max(0,hp2-10); playHit(); }
+      updateUI();
+      if(hp1<=0||hp2<=0){ endGame(); return; }
+      continue;
+    }
+    // Out of bounds
+    if(Math.abs(p.x)>800||p.z>600) { planes.splice(i,1); continue; }
+  }
+
+  // Update bullets
+  for(let i=bullets.length-1;i>=0;i--){
+    const b=bullets[i];
+    b.x+=b.vx*60*dt; b.y+=b.vy*60*dt; b.z+=b.vz*60*dt;
+    b.life-=dt;
+    if(b.life<=0||b.z>600||b.z<-200||Math.abs(b.x)>600||b.y<-600){ bullets.splice(i,1); continue; }
+
+    // Hit test vs planes
+    let hit=false;
+    for(let j=planes.length-1;j>=0;j--){
+      const p=planes[j];
+      const dist=Math.hypot(b.x-p.x,b.y-p.y,b.z-p.z);
+      if(dist<22*p.type.size){
+        p.hp--; p.hitFlash=1;
+        if(p.hp<=0){
+          boom(p.x,p.y,p.z);
+          planes.splice(j,1);
+          if(b.owner===0){ score1+=p.type.pts; }
+          else            { score2+=p.type.pts; }
+          updateUI();
+        }
+        bullets.splice(i,1); hit=true; break;
+      }
+    }
+    if(hit) continue;
+  }
+
+  // Particles
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];
+    p.x+=p.vx*60*dt; p.y+=p.vy*60*dt; p.z+=p.vz*60*dt;
+    p.vy+=1*dt; // gravity
+    p.life-=dt*1.5;
+    if(p.life<=0) particles.splice(i,1);
+  }
+}
+
+// ── Draw ──────────────────────────────────────────────────────────────────
+function drawSky(){
+  const sky=ctx.createLinearGradient(0,0,0,H);
+  sky.addColorStop(0,'#000814');
+  sky.addColorStop(0.4,'#001233');
+  sky.addColorStop(1,'#002244');
+  ctx.fillStyle=sky; ctx.fillRect(0,0,W,H);
+
+  // Stars
+  ctx.fillStyle='rgba(255,255,255,0.6)';
+  for(let i=0;i<80;i++){
+    const sx=(i*137.5)%W, sy=(i*97.3)%H*0.6;
+    const r=Math.sin(i+Date.now()*0.001)*0.5+1;
+    ctx.beginPath(); ctx.arc(sx,sy,r,0,Math.PI*2); ctx.fill();
+  }
+
+  // Horizon glow
+  const hg=ctx.createLinearGradient(0,H*0.55,0,H*0.75);
+  hg.addColorStop(0,'rgba(255,100,20,0)');
+  hg.addColorStop(0.5,'rgba(255,80,10,0.12)');
+  hg.addColorStop(1,'rgba(100,30,0,0.3)');
+  ctx.fillStyle=hg; ctx.fillRect(0,H*0.55,W,H*0.2);
+
+  // Ground
+  const grd=ctx.createLinearGradient(0,H*0.7,0,H);
+  grd.addColorStop(0,'#0a1a08'); grd.addColorStop(1,'#050d04');
+  ctx.fillStyle=grd; ctx.fillRect(0,H*0.7,W,H*0.3);
+
+  // Grid lines on ground (perspective)
+  ctx.strokeStyle='rgba(0,255,80,0.08)'; ctx.lineWidth=1;
+  const horizon=H*0.72;
+  for(let x=-6;x<=6;x++){
+    ctx.beginPath(); ctx.moveTo(W/2+x*(W*0.12),horizon); ctx.lineTo(W/2+x*W*1.2,H); ctx.stroke();
+  }
+  for(let d=0;d<8;d++){
+    const t=d/8; const yy=horizon+t*(H-horizon);
+    ctx.beginPath(); ctx.moveTo(0,yy); ctx.lineTo(W,yy); ctx.stroke();
+  }
+}
+
+function drawPlane(p){
+  // Project for both views
+  for(let pIdx=0;pIdx<2;pIdx++){
+    const viewCX = turrets[pIdx].cx();
+    const viewW = W/2;
+    // Offset x based on turret position (simple parallax)
+    const relX = p.x - turrets[pIdx].x;
+    const pr = project(relX, p.y, p.z, viewCX, H*0.5);
+    if(pr.scale<0.01) continue;
+    const sx=pr.sx, sy=pr.sy, sc=pr.scale;
+
+    // Clip to this player's half
+    const halfLeft = pIdx===0?0:W/2;
+    const halfRight = pIdx===0?W/2:W;
+    if(sx<halfLeft-30||sx>halfRight+30) continue;
+
+    ctx.save();
+    ctx.translate(sx,sy);
+    const s=sc*p.type.size*28;
+
+    // Trail
+    if(p.trail.length>2){
+      ctx.beginPath();
+      for(let ti=0;ti<p.trail.length;ti++){
+        const tp=project(p.trail[ti].x-turrets[pIdx].x, p.trail[ti].y, p.trail[ti].z, 0, 0);
+        const alpha=(ti/p.trail.length)*0.4;
+        if(ti===0) ctx.moveTo(tp.sx,tp.sy+H*0.5);
+        else ctx.lineTo(tp.sx,tp.sy+H*0.5);
+      }
+      ctx.strokeStyle=`rgba(200,220,255,0.3)`; ctx.lineWidth=sc*3;
+      ctx.stroke();
+    }
+
+    // Hit flash
+    if(p.hitFlash>0){
+      ctx.shadowColor='#fff'; ctx.shadowBlur=20*p.hitFlash;
+    }
+
+    // Body
+    const col = p.hitFlash>0 ? '#ffffff' : p.type.color;
+    ctx.fillStyle=col;
+
+    // Fuselage
+    ctx.beginPath();
+    ctx.ellipse(0,0,s*0.9,s*0.25,0,0,Math.PI*2); ctx.fill();
+    // Wings
+    ctx.beginPath();
+    ctx.moveTo(-s*0.2,0); ctx.lineTo(0,-s*1.2); ctx.lineTo(s*0.5,0);
+    ctx.lineTo(0,s*1.2); ctx.closePath(); ctx.fill();
+    // Tail
+    ctx.beginPath();
+    ctx.moveTo(-s*0.7,-s*0.1); ctx.lineTo(-s*0.6,-s*0.55); ctx.lineTo(-s*0.3,-s*0.1);
+    ctx.closePath(); ctx.fill();
+    // Engine glow
+    ctx.shadowColor=p.type.engineColor; ctx.shadowBlur=12*sc;
+    ctx.fillStyle=p.type.engineColor;
+    ctx.beginPath(); ctx.arc(-s*0.6,0,s*0.15,0,Math.PI*2); ctx.fill();
+    // HP bar if >1
+    if(p.type.hp>1&&p.hp<p.type.hp){
+      ctx.shadowBlur=0;
+      ctx.fillStyle='rgba(0,0,0,0.5)';
+      ctx.fillRect(-s,s*0.4,s*2,s*0.2);
+      ctx.fillStyle='#ff4400';
+      ctx.fillRect(-s,s*0.4,s*2*(p.hp/p.type.hp),s*0.2);
+    }
+    ctx.restore();
+  }
+}
+
+function drawTurret(t, idx){
+  const cx=t.cx(), cy=H*0.82;
+  ctx.save();
+  ctx.translate(cx,cy);
+
+  // Base platform
+  ctx.fillStyle='#1a1a1a';
+  ctx.beginPath(); ctx.ellipse(0,0,55,18,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#2a2a2a';
+  ctx.beginPath(); ctx.ellipse(0,0,42,14,0,0,Math.PI*2); ctx.fill();
+
+  // Rotating body
+  ctx.save();
+  ctx.rotate(Math.sin(t.azimuth)*0.5); // simple 2D representation
+
+  // Body cylinder
+  const bodyGrad=ctx.createLinearGradient(-22,-30,22,30);
+  bodyGrad.addColorStop(0,t.color+'44'); bodyGrad.addColorStop(0.5,t.darkColor); bodyGrad.addColorStop(1,'#000');
+  ctx.fillStyle=bodyGrad;
+  ctx.beginPath(); ctx.ellipse(0,-16,20,28,0,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle=t.color+'88'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.ellipse(0,-16,20,28,0,0,Math.PI*2); ctx.stroke();
+
+  // Barrel (angled based on elevation)
+  const barrelAngle = -(Math.PI/2 - t.elevation) - 0.3;
+  ctx.save();
+  ctx.translate(0,-32);
+  ctx.rotate(barrelAngle);
+  // Barrel
+  ctx.fillStyle=t.color;
+  ctx.fillRect(-4,0,8,-48);
+  ctx.fillStyle=t.darkColor;
+  ctx.fillRect(-4,0,8,-8);
+  // Muzzle flash when fired
+  ctx.fillStyle=t.color+'aa';
+  ctx.beginPath(); ctx.arc(0,-48,5,0,Math.PI*2); ctx.fill();
+  ctx.shadowColor=t.color; ctx.shadowBlur=15;
+  ctx.strokeStyle=t.color; ctx.lineWidth=2;
+  ctx.strokeRect(-4,0,8,-48);
+  ctx.restore();
+  ctx.restore();
+
+  // Aim indicator line (where you're pointing)
+  const aimDist=150;
+  const aimX=Math.sin(t.azimuth)*aimDist*0.5;
+  const aimY=-Math.abs(Math.cos(t.elevation))*aimDist - 60;
+  ctx.strokeStyle=t.color+'55'; ctx.lineWidth=1; ctx.setLineDash([4,6]);
+  ctx.beginPath(); ctx.moveTo(0,-60); ctx.lineTo(aimX,aimY); ctx.stroke();
+  ctx.setLineDash([]);
+  // Crosshair at aim point
+  ctx.strokeStyle=t.color; ctx.lineWidth=1.5;
+  ctx.beginPath();
+  ctx.arc(aimX,aimY,8,0,Math.PI*2);
+  ctx.moveTo(aimX-12,aimY); ctx.lineTo(aimX+12,aimY);
+  ctx.moveTo(aimX,aimY-12); ctx.lineTo(aimX,aimY+12);
+  ctx.stroke();
+
+  // Player label
+  ctx.fillStyle=t.color;
+  ctx.font='bold 11px Orbitron,monospace';
+  ctx.textAlign='center';
+  ctx.fillText(idx===0?'P1':'P2', 0, 20);
+
+  ctx.restore();
+}
+
+function drawBullet(b){
+  for(let pIdx=0;pIdx<2;pIdx++){
+    const pr=project(b.x-turrets[pIdx].x, b.y, b.z, turrets[pIdx].cx(), H*0.5);
+    if(pr.scale<0.01||pr.sx<0||pr.sx>W) continue;
+    const halfLeft=pIdx===0?0:W/2;
+    const halfRight=pIdx===0?W/2:W;
+    if(pr.sx<halfLeft||pr.sx>halfRight) continue;
+    ctx.save();
+    ctx.shadowColor=b.color; ctx.shadowBlur=12;
+    ctx.fillStyle=b.color;
+    ctx.beginPath(); ctx.arc(pr.sx,pr.sy,Math.max(2,pr.scale*8),0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawParticle(p){
+  for(let pIdx=0;pIdx<2;pIdx++){
+    const pr=project(p.x-turrets[pIdx].x, p.y, p.z, turrets[pIdx].cx(), H*0.5);
+    const halfLeft=pIdx===0?0:W/2;
+    const halfRight=pIdx===0?W/2:W;
+    if(pr.sx<halfLeft||pr.sx>halfRight) continue;
+    ctx.save();
+    ctx.globalAlpha=Math.max(0,p.life);
+    ctx.fillStyle=p.color;
+    ctx.shadowColor=p.color; ctx.shadowBlur=8;
+    ctx.beginPath(); ctx.arc(pr.sx,pr.sy,Math.max(1,pr.scale*p.r),0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+}
+
+// Dividing line between the two views
+function drawDivider(){
+  ctx.save();
+  ctx.strokeStyle='rgba(255,255,255,0.12)'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(W/2,0); ctx.lineTo(W/2,H); ctx.stroke();
+  // Player labels
+  ctx.fillStyle='rgba(68,255,170,0.3)';
+  ctx.font='bold 10px Orbitron,monospace';
+  ctx.textAlign='right';
+  ctx.fillText('P1 VIEW',W/2-8,H*0.7+16);
+  ctx.fillStyle='rgba(255,102,68,0.3)';
+  ctx.textAlign='left';
+  ctx.fillText('P2 VIEW',W/2+8,H*0.7+16);
+  ctx.restore();
+}
+
+function draw(){
+  // Draw both halves of sky separately (clip each)
+  for(let pIdx=0;pIdx<2;pIdx++){
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(pIdx===0?0:W/2, 0, W/2, H);
+    ctx.clip();
+    drawSky();
+    ctx.restore();
+  }
+
+  // Draw planes (each draws itself into both halves)
+  for(const p of planes) drawPlane(p);
+  for(const b of bullets) drawBullet(b);
+  for(const p of particles) drawParticle(p);
+
+  // Turrets
+  drawTurret(turrets[0],0);
+  drawTurret(turrets[1],1);
+  drawDivider();
+}
+
+// ── UI ────────────────────────────────────────────────────────────────────
+function updateUI(){
+  document.getElementById('s1').textContent=score1;
+  document.getElementById('s2').textContent=score2;
+  document.getElementById('hp1').style.width=hp1+'%';
+  document.getElementById('hp2').style.width=hp2+'%';
+  document.getElementById('ammo1').textContent='🔴'.repeat(ammo1)+'⚫'.repeat(MAX_AMMO-ammo1);
+  document.getElementById('ammo2').textContent='🔵'.repeat(ammo2)+'⚫'.repeat(MAX_AMMO-ammo2);
+  document.getElementById('wave-txt').textContent='WAVE '+wave;
+  const mins=Math.floor(gameTime/60), secs=Math.floor(gameTime%60);
+  document.getElementById('timer-txt').textContent=mins+':'+(secs<10?'0':'')+secs;
+}
+
+function endGame(){
+  running=false;
+  let title, subtitle, topScore;
+  if(hp1<=0&&hp2<=0){ title='💥 DRAW!'; subtitle='Both bases destroyed! P1: '+score1+' · P2: '+score2; topScore=Math.max(score1,score2); }
+  else if(hp1<=0){ title='🔴 P2 WINS!'; subtitle='P2 defended their base! P1: '+score1+' · P2: '+score2; topScore=score2; }
+  else if(hp2<=0){ title='🟢 P1 WINS!'; subtitle='P1 defended their base! P1: '+score1+' · P2: '+score2; topScore=score1; }
+  else if(score1>score2){ title='🟢 P1 WINS!'; subtitle='Most kills! P1: '+score1+' · P2: '+score2; topScore=score1; }
+  else if(score2>score1){ title='🔴 P2 WINS!'; subtitle='Most kills! P1: '+score1+' · P2: '+score2; topScore=score2; }
+  else { title='🤝 DRAW!'; subtitle='Equal kills! P1: '+score1+' · P2: '+score2; topScore=score1; }
+  const ov=document.getElementById('overlay');
+  HS.showGameOver({
+    key:'turret_battle', score:topScore, overlayEl:ov,
+    title, subtitle,
+    btnLabel:'⚡ PLAY AGAIN',
+    onRestart:()=>{ score1=0;score2=0;hp1=100;hp2=100;wave=1;gameTime=180; ammo1=MAX_AMMO;ammo2=MAX_AMMO; planes=[];bullets=[];particles=[];spawnTimer=0; turrets[0].azimuth=0.8; turrets[1].azimuth=Math.PI-0.8; updateUI(); running=true; },
+    hiColor:'#44ffaa',
+    titleStyle:"font-family:'Orbitron',monospace;font-size:clamp(1.8rem,6vw,2.8rem);color:#44ffaa;text-shadow:0 0 20px #44ffaa;letter-spacing:2px;text-align:center;margin-bottom:8px",
+    btnClass:'start-btn'
+  });
+}
+
+function showOverlay(title,body,btnTxt,onBtn){
+  const ov=document.getElementById('overlay');
+  ov.innerHTML=`
+    <h1>${title}</h1>
+    <p style="color:#aaa;font-size:1rem;white-space:pre-line;margin:10px 0;">${body}</p>
+    <button class="start-btn" id="ovBtn">${btnTxt}</button>
+  `;
+  ov.style.display='flex';
+  document.getElementById('ovBtn').addEventListener('click',()=>{ ensureAudio(); ov.style.display='none'; onBtn(); });
+}
+
+function showMsg(text){
+  const el=document.getElementById('msg');
+  el.textContent=text; el.style.opacity='1';
+  clearTimeout(msgTimer);
+  msgTimer=setTimeout(()=>el.style.opacity='0',2000);
+}
+
+// ── Loop ──────────────────────────────────────────────────────────────────
+let uiTick=0;
+function loop(now){
+  const dt=Math.min((now-lastTime)/1000,0.05);
+  lastTime=now;
+  try{
+    update(dt);
+    draw();
+    uiTick+=dt;
+    if(uiTick>0.1){ updateUI(); uiTick=0; }
+  }catch(e){ console.error(e); }
+  requestAnimationFrame(loop);
+}
+
+document.getElementById('startBtn').addEventListener('click',()=>{
+  ensureAudio();
+  document.getElementById('overlay').style.display='none';
+  running=true;
+});
+
+requestAnimationFrame(t=>{ lastTime=t; requestAnimationFrame(loop); });
+</script>
+</body>
+</html>

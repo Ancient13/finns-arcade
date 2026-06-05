@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Nightmare Dino Hides!</title>
+<script src="leaderboard.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Creepster&family=Orbitron:wght@700&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:#000;overflow:hidden;touch-action:none;user-select:none;font-family:'Creepster',cursive;}
+  canvas{display:block;}
+  #ui{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:7px 14px;z-index:10;pointer-events:none;background:linear-gradient(180deg,rgba(0,0,0,0.85),transparent);}
+  .pill{background:rgba(0,0,0,0.7);border-radius:20px;padding:4px 13px;font-size:0.82rem;}
+  #score-txt{color:#88ffaa;border:1.5px solid #88ffaa44;}
+  #level-txt{color:#ffcc44;border:1.5px solid #ffcc4444;font-family:'Orbitron',monospace;font-size:0.65rem;}
+  #lives-txt{color:#ff88cc;border:1.5px solid #ff88cc44;}
+  #fear-wrap{position:fixed;top:46px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:2px;pointer-events:none;z-index:10;}
+  #fear-label{color:#ff88cc;font-size:0.52rem;letter-spacing:2px;font-family:'Orbitron',monospace;}
+  #fear-bg{width:160px;height:8px;background:rgba(255,100,180,0.1);border-radius:4px;border:1px solid #ff88cc33;overflow:hidden;}
+  #fear-bar{height:100%;border-radius:4px;background:linear-gradient(90deg,#880044,#ff44aa);transition:width 0.15s;}
+  #coins-wrap{position:fixed;top:68px;left:50%;transform:translateX(-50%);font-family:'Orbitron',monospace;font-size:0.75rem;color:#ffd700;pointer-events:none;z-index:10;text-shadow:0 0 8px #ffd700;}
+  #joy-zone{position:fixed;bottom:24px;left:24px;width:110px;height:110px;z-index:15;pointer-events:all;}
+  #joy-base{width:110px;height:110px;border-radius:50%;background:rgba(100,255,100,0.07);border:2px solid rgba(100,255,100,0.28);position:absolute;}
+  #joy-knob{width:42px;height:42px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#aaffaa,#226622);border:2px solid #88ff88;position:absolute;top:34px;left:34px;box-shadow:0 0 10px #88ff8888;}
+  #hide-btn{position:fixed;bottom:24px;right:24px;width:84px;height:84px;border-radius:50%;background:rgba(0,0,0,0.7);border:3px solid #44ff88;color:#44ff88;display:flex;align-items:center;justify-content:center;flex-direction:column;z-index:15;cursor:pointer;pointer-events:all;-webkit-tap-highlight-color:transparent;font-family:'Orbitron',monospace;font-size:0.5rem;gap:2px;}
+  #hide-btn.hiding{background:rgba(0,60,20,0.6);border-color:#88ffaa;box-shadow:0 0 18px #44ff8866;}
+  #msg{position:fixed;top:36%;left:50%;transform:translate(-50%,-50%);font-size:1.7rem;color:#88ffaa;text-shadow:0 0 20px #00ff44;white-space:pre-line;pointer-events:none;opacity:0;transition:opacity 0.3s;z-index:20;text-align:center;background:rgba(0,0,0,0.72);padding:10px 22px;border-radius:12px;}
+  #jumpscare{position:fixed;inset:0;z-index:50;display:none;background:#000;align-items:center;justify-content:center;}
+  #overlay{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,5,0.97);}
+  #overlay h1{font-size:clamp(1.8rem,6vw,3rem);color:#88ffaa;text-shadow:0 0 30px #00ff44;letter-spacing:2px;text-align:center;margin-bottom:8px;}
+  #overlay p{color:#666;font-size:0.85rem;margin:3px 0;text-align:center;}
+  .btn{margin-top:20px;padding:12px 40px;font-size:1.6rem;color:#88ffaa;border:2px solid #88ffaa;background:transparent;border-radius:4px;cursor:pointer;box-shadow:0 0 20px #88ffaa33;}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <div class="pill" id="score-txt">⭐ 0</div>
+  <div class="pill" id="level-txt">NIGHT 1</div>
+  <div class="pill" id="lives-txt">🦖🦖🦖</div>
+</div>
+<div id="fear-wrap">
+  <div id="fear-label">🧁 CUPCAKE SENSES YOU</div>
+  <div id="fear-bg"><div id="fear-bar" style="width:0%"></div></div>
+</div>
+<div id="coins-wrap" id="coins-wrap">🪙 0 / 10</div>
+<div id="joy-zone"><div id="joy-base"></div><div id="joy-knob"></div></div>
+<div id="hide-btn"><span style="font-size:1.8rem">🌿</span><span id="hide-label">HIDE</span></div>
+<div id="msg"></div>
+<div id="jumpscare"></div>
+<div id="overlay">
+  <h1>🦖 NIGHTMARE DINO<br>HIDES FROM CUPCAKE!</h1>
+  <p style="color:#88ffaa;font-size:0.92rem;margin-bottom:6px;">You're the Nightmare Dino — collect coins and survive!</p>
+  <p style="color:#ffd700;font-weight:900;">🪙 Collect all coins to advance to the next night!</p>
+  <p style="color:#ff88cc;font-weight:900;">🧁 Nightmare Cupcake is hunting you!</p>
+  <p style="color:#44ff88;">🌿 Press HIDE near bushes or trees to hide!</p>
+  <p style="color:#ff4444;font-weight:900;">⚠️ If Cupcake touches you — JUMPSCARE!</p>
+  <p style="color:#444;margin-top:8px;font-size:0.75rem;">Joystick = move · 🌿 = hide near cover · Collect all 🪙!</p>
+  <button class="btn" id="startBtn">▶ RAWR!</button>
+</div>
+<script>
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+let W,H;
+function resize(){W=window.innerWidth;H=window.innerHeight;canvas.width=W;canvas.height=H;}
+resize();window.addEventListener('resize',resize);
+
+// ── AUDIO ──────────────────────────────────────────────────────────────────
+let ac=null;
+function ea(){if(!ac)ac=new(window.AudioContext||window.webkitAudioContext)();if(ac.state==='suspended')ac.resume();}
+function beep(f,t,d,v=0.2,s=null){try{ea();const o=ac.createOscillator(),g=ac.createGain();o.type=t;o.frequency.setValueAtTime(f,ac.currentTime);if(s)o.frequency.exponentialRampToValueAtTime(s,ac.currentTime+d);g.gain.setValueAtTime(v,ac.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+d);o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+d+0.01);}catch(e){}}
+function playCoin(){[880,1100,1320].forEach((f,i)=>setTimeout(()=>beep(f,'sine',0.07,0.18),i*35));}
+function playHide(){beep(300,'sine',0.1,0.15,500);}
+function playRoar(){try{ea();const buf=ac.createBuffer(1,ac.sampleRate*0.6,ac.sampleRate);const d=buf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.exp(-i/d.length*3)*Math.sin(i*0.018+Math.sin(i*0.003)*6);const src=ac.createBufferSource(),g=ac.createGain(),f=ac.createBiquadFilter();src.buffer=buf;g.gain.value=0.4;f.type='lowpass';f.frequency.value=250;src.connect(f);f.connect(g);g.connect(ac.destination);src.start();}catch(e){}}
+function playScream(){try{ea();const o=ac.createOscillator(),g=ac.createGain();o.type='sawtooth';o.frequency.setValueAtTime(400,ac.currentTime);o.frequency.exponentialRampToValueAtTime(80,ac.currentTime+1.5);g.gain.setValueAtTime(0.7,ac.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+2);o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+2.2);}catch(e){}}
+function playClear(){[523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,'sine',0.15,0.25),i*70));}
+
+// ── MAP ────────────────────────────────────────────────────────────────────
+// 0=floor 1=wall/tree 2=bush 3=rock 4=coin 5=exit
+const BASE_MAP=[
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  [1,0,0,0,0,0,0,2,0,0,0,0,0,2,0,0,0,0,0,1],
+  [1,0,1,1,0,0,0,0,0,4,0,0,0,0,0,0,1,1,0,1],
+  [1,0,0,0,0,4,0,0,0,0,0,0,0,0,4,0,0,0,0,1],
+  [1,0,0,0,0,0,1,1,0,0,0,1,1,0,0,0,0,0,0,1],
+  [1,2,0,0,0,0,0,0,0,4,0,0,0,0,0,0,0,0,2,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,3,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,1],
+  [1,0,0,0,0,0,1,1,0,0,0,1,1,0,0,0,0,0,0,1],
+  [1,0,0,0,4,0,0,0,0,0,0,0,0,0,4,0,0,0,0,1],
+  [1,0,1,1,0,0,0,0,0,4,0,0,0,0,0,0,1,1,0,1],
+  [1,0,0,0,0,0,0,2,0,0,0,0,0,2,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5,1],
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+];
+const COLS=20,ROWS=14;
+let map=[];
+let TILE=0;
+
+function buildMap(lvl){
+  map=BASE_MAP.map(r=>[...r]);
+  // Add extra coins for higher levels
+  for(let i=0;i<lvl*2;i++){
+    const r=1+Math.floor(Math.random()*(ROWS-2));
+    const c=1+Math.floor(Math.random()*(COLS-2));
+    if(map[r][c]===0) map[r][c]=4;
+  }
+}
+
+function countCoins(){return map.flat().filter(v=>v===4).length;}
+
+// ── STATE ──────────────────────────────────────────────────────────────────
+let score=0,lives=3,level=1,running=false;
+let fear=0,msgTimer=null,bobTime=0;
+let hiding=false,hideTimer=0;
+let coinsLeft=0,coinsTotal=0;
+
+// Player (Dino)
+let px=1.5,py=1.5,pAngle=0;
+const PSPEED=4.2;
+
+// Nightmare Cupcake
+let cx2=17.5,cy2=11.5,cAngle=0,cSpeed=0;
+let ctargetX=17.5,ctargetY=11.5,cbfsTimer=0;
+let cstate='patrol',cstateTimer=0,croarTimer=0;
+
+function startLevel(lvl){
+  level=lvl; fear=0; hiding=false; hideTimer=0;
+  buildMap(lvl);
+  coinsTotal=countCoins(); coinsLeft=coinsTotal;
+  px=1.5; py=1.5; pAngle=0;
+  cx2=17.5; cy2=11.5; ctargetX=cx2; ctargetY=cy2;
+  cSpeed=1.2+lvl*0.35; cstate='patrol'; cstateTimer=3+Math.random()*2;
+  cbfsTimer=0; croarTimer=2+Math.random()*3;
+  updateUI();
+}
+
+// ── CONTROLS ──────────────────────────────────────────────────────────────
+const keys={};
+window.addEventListener('keydown',e=>keys[e.key]=true);
+window.addEventListener('keyup',  e=>keys[e.key]=false);
+
+const jZone=document.getElementById('joy-zone'),jKnob=document.getElementById('joy-knob');
+let jActive=false,jTouchId=null,jx=0,jy=0;
+function jSet(sx,sy){const r=jZone.getBoundingClientRect();const ox=sx-r.left-55,oy=sy-r.top-55;const d=Math.min(32,Math.hypot(ox,oy)),a=Math.atan2(oy,ox);jx=Math.cos(a)*d/32;jy=Math.sin(a)*d/32;jKnob.style.left=(34+jx*32)+'px';jKnob.style.top=(34+jy*32)+'px';jActive=true;}
+function jClear(){jActive=false;jx=0;jy=0;jKnob.style.left='34px';jKnob.style.top='34px';}
+jZone.addEventListener('touchstart',e=>{e.preventDefault();const t=e.changedTouches[0];jTouchId=t.identifier;jSet(t.clientX,t.clientY);});
+jZone.addEventListener('touchmove', e=>{e.preventDefault();for(const t of e.changedTouches)if(t.identifier===jTouchId)jSet(t.clientX,t.clientY);});
+jZone.addEventListener('touchend',  e=>{e.preventDefault();jClear();});
+jZone.addEventListener('mousedown', e=>jSet(e.clientX,e.clientY));
+window.addEventListener('mousemove',e=>{if(jActive&&!jTouchId)jSet(e.clientX,e.clientY);});
+window.addEventListener('mouseup',  ()=>{if(!jTouchId)jClear();});
+
+const hideBtn=document.getElementById('hide-btn');
+hideBtn.addEventListener('touchstart',e=>{e.preventDefault();ea();tryHide();});
+hideBtn.addEventListener('mousedown', ()=>{ea();tryHide();});
+
+function tryHide(){
+  if(!running)return;
+  // Check if near cover
+  const nearCover=checkNearCover();
+  if(nearCover){
+    hiding=!hiding;
+    if(hiding){playHide();showMsg('🌿 HIDING!\nShe can\'t see you!');}
+    else showMsg('👀 Sneaking out...');
+  } else {
+    showMsg('Get near a bush,\ntree or rock first!');
+  }
+}
+function checkNearCover(){
+  // On bush/rock, or adjacent to tree
+  const v=cellAt(px,py);
+  if(v===2||v===3)return true;
+  for(const[ddx,ddy]of[[0.6,0],[-0.6,0],[0,0.6],[0,-0.6]]){
+    if(cellAt(px+ddx,py+ddy)===1)return true;
+  }
+  return false;
+}
+
+// ── MAP HELPERS ────────────────────────────────────────────────────────────
+function cellAt(x,y){const mc=Math.floor(x),mr=Math.floor(y);if(mc<0||mc>=COLS||mr<0||mr>=ROWS)return 1;return map[mr][mc];}
+function isWall(x,y){return cellAt(x,y)===1;}
+function isFree(x,y,r=0.28){return!isWall(x+r,y)&&!isWall(x-r,y)&&!isWall(x,y+r)&&!isWall(x,y-r)&&!isWall(x,y);}
+
+function bfsNext(fx,fy,tx,ty){
+  const fc=Math.floor(fx),fr=Math.floor(fy),tc=Math.floor(tx),tr=Math.floor(ty);
+  if(fc===tc&&fr===tr)return{x:tx,y:ty};
+  const visited=new Set(),prev=new Map(),q=[[fc,fr]];visited.add(fc+','+fr);
+  while(q.length){
+    const[c,r]=q.shift();
+    if(c===tc&&r===tr){let cur=c+','+r;while(true){const p=prev.get(cur);if(!p)break;const[pc,pr]=p;if(pc===fc&&pr===fr)return{x:c+0.5,y:r+0.5};cur=pc+','+pr;}return{x:tc+0.5,y:tr+0.5};}
+    for(const[dc,dr]of[[0,1],[0,-1],[1,0],[-1,0]]){const nc=c+dc,nr=r+dr,key=nc+','+nr;if(nc<0||nc>=COLS||nr<0||nr>=ROWS||map[nr][nc]===1||visited.has(key))continue;visited.add(key);prev.set(key,[c,r]);q.push([nc,nr]);}
+  }
+  return{x:fx,y:fy};
+}
+
+// ── UPDATE ────────────────────────────────────────────────────────────────
+let lastTime=0;
+function update(dt){
+  if(!running)return;
+  bobTime+=dt;
+  TILE=Math.min(W/COLS,H/ROWS);
+
+  // Player move
+  let mx=0,my=0;
+  if(keys['ArrowLeft']||keys['a']||keys['A'])mx-=1;
+  if(keys['ArrowRight']||keys['d']||keys['D'])mx+=1;
+  if(keys['ArrowUp']||keys['w']||keys['W'])my-=1;
+  if(keys['ArrowDown']||keys['s']||keys['S'])my+=1;
+  if(jActive){mx+=jx;my+=jy;}
+  const mag=Math.hypot(mx,my);
+  if(mag>0.08){
+    mx/=mag;my/=mag;
+    const spd=PSPEED*dt*(hiding?0.4:1.0);
+    pAngle=Math.atan2(my,mx);
+    if(isFree(px+mx*spd,py))px+=mx*spd;
+    if(isFree(px,py+my*spd))py+=my*spd;
+    px=Math.max(0.5,Math.min(COLS-0.5,px));
+    py=Math.max(0.5,Math.min(ROWS-0.5,py));
+    if(!isFree(px,py)){let f=false;for(let r=0.1;r<2&&!f;r+=0.1)for(const[ddx,ddy]of[[1,0],[-1,0],[0,1],[0,-1]])if(isFree(px+ddx*r,py+ddy*r)){px+=ddx*r;py+=ddy*r;f=true;break;}if(!f){px=1.5;py=1.5;}}
+    // Moving cancels hiding
+    if(hiding&&mag>0.15){hiding=false;showMsg('🏃 Moving breaks cover!');}
+  }
+
+  // Collect coins + exit
+  const pc=Math.floor(px),pr=Math.floor(py);
+  if(pc>=0&&pc<COLS&&pr>=0&&pr<ROWS){
+    if(map[pr][pc]===4){
+      map[pr][pc]=0;coinsLeft--;score+=15*level;
+      playCoin();showMsg('🪙 +'+15*level+' pts!');updateUI();
+      if(coinsLeft<=0) showMsg('🪙 ALL COINS!\nFind the exit! 🚪');
+    }
+    if(map[pr][pc]===5&&coinsLeft<=0){levelClear();return;}
+    if(map[pr][pc]===5&&coinsLeft>0) showMsg('🪙 Collect all coins\nfirst! '+coinsLeft+' left!');
+  }
+
+  // Hide button auto-cancel if moved away from cover
+  if(hiding&&!checkNearCover()){hiding=false;}
+  hideBtn.className=hiding?'hiding':'';
+  document.getElementById('hide-label').textContent=hiding?'HIDING!':'HIDE';
+
+  // ── NIGHTMARE CUPCAKE AI ──────────────────────────────────────────────
+  const dist=Math.hypot(cx2-px,cy2-py);
+  const canSee=dist<5.5&&!hiding;
+  const canSmell=dist<2.5; // smells you even when hiding if very close
+
+  // Fear
+  let fearRate=0;
+  if(hiding){fearRate=canSmell?0.12:-0.15;}
+  else{fearRate=dist<1.5?0.6:dist<3?0.25:dist<5?0.1:-0.06;}
+  fear=Math.max(0,Math.min(1,fear+fearRate*dt));
+  document.getElementById('fear-bar').style.width=(fear*100)+'%';
+  document.getElementById('fear-bar').style.background=fear>0.6?'linear-gradient(90deg,#880000,#ff2244)':fear>0.3?'linear-gradient(90deg,#664400,#ff8800)':'linear-gradient(90deg,#004400,#44ff88)';
+
+  // Cupcake state machine
+  cstateTimer-=dt; cbfsTimer-=dt; croarTimer=Math.max(0,croarTimer-dt);
+  if(cstate==='patrol'){
+    if(cstateTimer<=0){cstateTimer=2+Math.random()*3;ctargetX=1+Math.random()*(COLS-2);ctargetY=1+Math.random()*(ROWS-2);}
+    if(canSee||canSmell){cstate='hunt';cstateTimer=4+Math.random()*3;if(croarTimer<=0){croarTimer=2+Math.random()*2;playRoar();showMsg('🧁 IT FOUND YOU!\nHIDE NOW!!');}}
+  } else if(cstate==='hunt'){
+    ctargetX=px;ctargetY=py;
+    if(!canSee&&!canSmell&&fear<0.1){cstate='patrol';cstateTimer=3+Math.random()*2;showMsg('🌿 You lost it!\nKeep moving!');}
+    if(croarTimer<=0){croarTimer=1.5+Math.random()*2;playRoar();}
+  }
+  if(cbfsTimer<=0){
+    cbfsTimer=0.38+Math.random()*0.2;
+    const n=bfsNext(cx2,cy2,ctargetX,ctargetY);
+    const cdx=n.x-cx2,cdy=n.y-cy2,cdist=Math.hypot(cdx,cdy);
+    const spd=cstate==='hunt'?cSpeed*1.7:cSpeed*0.65;
+    if(cdist>0.05){
+      const ds=spd*dt,enx=cdx/cdist,eny=cdy/cdist;
+      if(isFree(cx2+enx*ds,cy2))cx2+=enx*ds;
+      if(isFree(cx2,cy2+eny*ds))cy2+=eny*ds;
+      cAngle=Math.atan2(cdy,cdx);
+    }
+    if(!isFree(cx2,cy2)){let f=false;for(let r=0.1;r<2&&!f;r+=0.1)for(const[ddx,ddy]of[[1,0],[-1,0],[0,1],[0,-1]])if(isFree(cx2+ddx*r,cy2+ddy*r)){cx2+=ddx*r;cy2+=ddy*r;f=true;break;}if(!f){cx2=17.5;cy2=11.5;}}
+  }
+  cx2=Math.max(0.5,Math.min(COLS-0.5,cx2));
+  cy2=Math.max(0.5,Math.min(ROWS-0.5,cy2));
+
+  if(dist<0.65&&!hiding){doJumpScare();return;}
+  if(fear>=1){doJumpScare();return;}
+}
+
+function levelClear(){
+  running=false;playClear();
+  score+=300*level;
+  if(level>=5){endGame(true);return;}
+  showMsg('🪙 NIGHT '+level+' CLEAR!\n+'+300*level+' pts!\nNext night...');
+  setTimeout(()=>{startLevel(level+1);running=true;},2400);
+}
+
+function doJumpScare(){
+  running=false;playScream();
+  const js=document.getElementById('jumpscare');js.style.display='flex';
+  const jsc=document.createElement('canvas');jsc.width=W;jsc.height=H;js.appendChild(jsc);
+  const jCtx=jsc.getContext('2d');
+  jCtx.fillStyle='#ff88cc';jCtx.fillRect(0,0,W,H);
+  setTimeout(()=>{
+    jCtx.fillStyle='#000';jCtx.fillRect(0,0,W,H);
+    drawCupcakeFace(jCtx,W/2,H/2,Math.min(W,H)*0.6);
+    setTimeout(()=>{
+      js.style.display='none';js.innerHTML='';
+      lives=Math.max(0,lives-1);
+      if(lives<=0){endGame(false);return;}
+      fear=0;hiding=false;
+      px=1.5;py=1.5;cx2=17.5;cy2=11.5;
+      cstate='patrol';cstateTimer=4;
+      showMsg('💀 CUPCAKE GOT YOU!\n'+lives+' 🦖 left');
+      updateUI();running=true;
+    },2200);
+  },160);
+}
+
+// ── DRAW ──────────────────────────────────────────────────────────────────
+function draw(){
+  TILE=Math.min(W/COLS,H/ROWS);
+  const offX=(W-COLS*TILE)/2,offY=(H-ROWS*TILE)/2;
+
+  // Background
+  ctx.fillStyle='#020502';ctx.fillRect(0,0,W,H);
+
+  // Tiles
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      const tx=offX+c*TILE,ty=offY+r*TILE,v=map[r][c];
+      if(v===1){
+        // Tree
+        const tg=ctx.createLinearGradient(tx,ty,tx,ty+TILE);
+        tg.addColorStop(0,'#1a3a10');tg.addColorStop(1,'#0c1e08');
+        ctx.fillStyle=tg;ctx.fillRect(tx,ty,TILE,TILE);
+        ctx.fillStyle='#2a1808';ctx.fillRect(tx+TILE*.32,ty+TILE*.42,TILE*.36,TILE*.6);
+        ctx.fillStyle='#2d6618';ctx.shadowColor='#44aa22';ctx.shadowBlur=3;
+        ctx.beginPath();ctx.arc(tx+TILE/2,ty+TILE*.3,TILE*.38,0,Math.PI*2);ctx.fill();
+        ctx.fillStyle='#3a8822';
+        ctx.beginPath();ctx.arc(tx+TILE*.3,ty+TILE*.4,TILE*.26,0,Math.PI*2);ctx.fill();
+        ctx.beginPath();ctx.arc(tx+TILE*.7,ty+TILE*.4,TILE*.26,0,Math.PI*2);ctx.fill();
+        ctx.shadowBlur=0;
+        // Hide glow if adjacent
+        const td=Math.hypot(c+0.5-px,r+0.5-py);
+        if(td<1.3&&!hiding){ctx.fillStyle='rgba(80,255,120,0.15)';ctx.beginPath();ctx.arc(tx+TILE/2,ty+TILE/2,TILE*.55,0,Math.PI*2);ctx.fill();}
+      } else {
+        const dark=(r+c)%2;
+        ctx.fillStyle=dark?'#030a02':'#050e03';
+        ctx.fillRect(tx,ty,TILE,TILE);
+        if(v===2){
+          // Bush
+          ctx.shadowColor='#44ff22';ctx.shadowBlur=5;
+          ctx.fillStyle='#1a5a08';ctx.beginPath();ctx.ellipse(tx+TILE/2,ty+TILE*.6,TILE*.44,TILE*.36,0,0,Math.PI*2);ctx.fill();
+          ctx.fillStyle='#228810';ctx.beginPath();ctx.ellipse(tx+TILE*.38,ty+TILE*.5,TILE*.3,TILE*.26,0,0,Math.PI*2);ctx.fill();
+          ctx.beginPath();ctx.ellipse(tx+TILE*.64,ty+TILE*.52,TILE*.26,TILE*.22,0,0,Math.PI*2);ctx.fill();
+          ctx.shadowBlur=0;
+          const bd=Math.hypot(c+0.5-px,r+0.5-py);
+          if(bd<1.5&&!hiding){ctx.fillStyle='rgba(50,255,80,0.14)';ctx.beginPath();ctx.arc(tx+TILE/2,ty+TILE/2,TILE*.5,0,Math.PI*2);ctx.fill();}
+        } else if(v===3){
+          // Rock
+          ctx.fillStyle='#445544';ctx.beginPath();ctx.ellipse(tx+TILE/2,ty+TILE*.65,TILE*.4,TILE*.28,0.2,0,Math.PI*2);ctx.fill();
+          ctx.fillStyle='#556655';ctx.beginPath();ctx.ellipse(tx+TILE*.4,ty+TILE*.58,TILE*.26,TILE*.18,-0.2,0,Math.PI*2);ctx.fill();
+          const rd=Math.hypot(c+0.5-px,r+0.5-py);
+          if(rd<1.5&&!hiding){ctx.fillStyle='rgba(100,220,100,0.13)';ctx.beginPath();ctx.arc(tx+TILE/2,ty+TILE/2,TILE*.5,0,Math.PI*2);ctx.fill();}
+        } else if(v===4){
+          // Coin
+          const bob=Math.sin(bobTime*3.5+c*0.7+r*0.5)*4;
+          ctx.shadowColor='#ffd700';ctx.shadowBlur=14;
+          ctx.fillStyle='#ffd700';ctx.beginPath();ctx.arc(tx+TILE/2,ty+TILE/2+bob,TILE*.28,0,Math.PI*2);ctx.fill();
+          ctx.fillStyle='#ffee44';ctx.beginPath();ctx.arc(tx+TILE*.44,ty+TILE*.42+bob,TILE*.1,0,Math.PI*2);ctx.fill();
+          ctx.fillStyle='#aa8800';ctx.font=`bold ${TILE*.22}px Orbitron,monospace`;
+          ctx.textAlign='center';ctx.textBaseline='middle';
+          ctx.fillText('¢',tx+TILE/2,ty+TILE/2+bob);
+          ctx.shadowBlur=0;
+        } else if(v===5){
+          // Exit
+          const exitOk=coinsLeft<=0;
+          const pulse=Math.sin(bobTime*4)*0.3+0.7;
+          ctx.shadowColor=exitOk?'#00ffcc':'#888888';ctx.shadowBlur=exitOk?18*pulse:5;
+          ctx.font=`${TILE*.85}px serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+          ctx.fillText('🚪',tx+TILE/2,ty+TILE/2);
+          if(exitOk){ctx.fillStyle=`rgba(0,255,200,${pulse*.18})`;ctx.beginPath();ctx.arc(tx+TILE/2,ty+TILE/2,TILE*.6,0,Math.PI*2);ctx.fill();}
+          ctx.shadowBlur=0;
+        }
+      }
+    }
+  }
+
+  // Nightmare Cupcake
+  drawCupcake(offX+cx2*TILE,offY+cy2*TILE,TILE,cAngle);
+  // Nightmare Dino (player)
+  drawDino(offX+px*TILE,offY+py*TILE,TILE,pAngle,hiding);
+
+  // Fear vignette
+  if(fear>0.2){
+    const vig=ctx.createRadialGradient(W/2,H/2,H*.2,W/2,H/2,H*.9);
+    vig.addColorStop(0,'rgba(0,0,0,0)');
+    vig.addColorStop(1,`rgba(200,0,${Math.floor(fear*80)},${fear*.5})`);
+    ctx.fillStyle=vig;ctx.fillRect(0,0,W,H);
+  }
+  if(fear>0.7&&Math.sin(bobTime*7)>0.85){ctx.fillStyle=`rgba(255,50,100,${(fear-.7)*.4})`;ctx.fillRect(0,0,W,H);}
+
+  // Hiding overlay
+  if(hiding){
+    ctx.fillStyle='rgba(30,200,60,0.07)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='rgba(50,255,80,0.65)';
+    ctx.font=`bold ${Math.min(12,W*.022)}px Orbitron,monospace`;
+    ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText('🌿 HIDDEN',W/2,H-28);
+  }
+}
+
+// ── DRAW DINO ─────────────────────────────────────────────────────────────
+function drawDino(x,y,t,angle,hidden){
+  ctx.save();ctx.translate(x,y);ctx.rotate(angle+Math.PI/2);
+  const s=t*.42;
+  ctx.globalAlpha=hidden?.45:1;
+  const pulse=Math.sin(bobTime*2.5)*.08+.92;
+
+  // Shadow
+  ctx.fillStyle='rgba(0,0,0,0.3)';ctx.beginPath();ctx.ellipse(0,s*.55,s*.48,s*.09,0,0,Math.PI*2);ctx.fill();
+
+  // Tail
+  ctx.strokeStyle='#1a4a1a';ctx.lineWidth=s*.18;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(0,s*.45);ctx.quadraticCurveTo(-s*.35,s*1.1,-s*.18,s*1.65);ctx.stroke();
+  // Tail spines
+  ctx.strokeStyle='#336633';ctx.lineWidth=s*.05;
+  for(let i=0;i<3;i++){ctx.beginPath();ctx.moveTo(-s*.04*i,s*(.5+i*.28));ctx.lineTo(-s*.06*i-s*.12,s*(.5+i*.28)-s*.12);ctx.stroke();}
+
+  // Body
+  ctx.shadowColor='#00ff44';ctx.shadowBlur=hidden?3:8*pulse;
+  const bg=ctx.createRadialGradient(0,0,s*.02,0,0,s*.48);
+  bg.addColorStop(0,'#1a5a1a');bg.addColorStop(.6,'#0d3a0d');bg.addColorStop(1,'#041004');
+  ctx.fillStyle=bg;
+  ctx.beginPath();ctx.moveTo(0,-s*.48);ctx.lineTo(s*.36,-s*.22);ctx.lineTo(s*.42,s*.1);ctx.lineTo(s*.36,s*.32);ctx.lineTo(0,s*.5);ctx.lineTo(-s*.36,s*.32);ctx.lineTo(-s*.42,s*.08);ctx.lineTo(-s*.34,-s*.24);ctx.closePath();ctx.fill();
+  ctx.shadowBlur=0;
+
+  // Spine fins
+  ctx.fillStyle='#336633';ctx.shadowColor='#00ff44';ctx.shadowBlur=4*pulse;
+  for(let i=0;i<5;i++){const sy=-s*.38+i*s*.14,sh=s*(.16-i*.02);ctx.beginPath();ctx.moveTo(-s*.055,sy);ctx.lineTo(0,sy-sh);ctx.lineTo(s*.055,sy);ctx.closePath();ctx.fill();}
+  ctx.shadowBlur=0;
+
+  // Arms
+  ctx.strokeStyle='#1a4a1a';ctx.lineWidth=s*.08;
+  ctx.beginPath();ctx.moveTo(-s*.28,-s*.04);ctx.lineTo(-s*.5,s*.1);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(s*.28,-s*.04);ctx.lineTo(s*.5,s*.1);ctx.stroke();
+  ctx.strokeStyle='#336633';ctx.lineWidth=s*.035;
+  for(let c=0;c<3;c++){const a=-0.5+c*.44;ctx.beginPath();ctx.moveTo(-s*.5,s*.1);ctx.lineTo(-s*.5+Math.cos(a)*s*.12,s*.1+Math.sin(a)*s*.12);ctx.stroke();ctx.beginPath();ctx.moveTo(s*.5,s*.1);ctx.lineTo(s*.5+Math.cos(Math.PI-a)*s*.12,s*.1+Math.sin(Math.PI-a)*s*.12);ctx.stroke();}
+
+  // Legs
+  ctx.strokeStyle='#0d3a0d';ctx.lineWidth=s*.18;
+  ctx.beginPath();ctx.moveTo(-s*.17,s*.42);ctx.lineTo(-s*.22,s*.72);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(s*.17,s*.42);ctx.lineTo(s*.22,s*.72);ctx.stroke();
+
+  // Head
+  ctx.shadowColor='#00ff44';ctx.shadowBlur=10*pulse;
+  const hg=ctx.createRadialGradient(0,-s*.46,s*.03,0,-s*.4,s*.38);
+  hg.addColorStop(0,'#1a5a1a');hg.addColorStop(.6,'#0a2e0a');hg.addColorStop(1,'#020802');
+  ctx.fillStyle=hg;
+  ctx.beginPath();ctx.moveTo(0,-s*.74);ctx.lineTo(s*.3,-s*.6);ctx.lineTo(s*.38,-s*.38);ctx.lineTo(s*.3,-s*.22);ctx.lineTo(0,-s*.16);ctx.lineTo(-s*.3,-s*.22);ctx.lineTo(-s*.38,-s*.4);ctx.lineTo(-s*.28,-s*.62);ctx.closePath();ctx.fill();
+  ctx.shadowBlur=0;
+
+  // Eyes
+  ctx.shadowColor='#00ff44';ctx.shadowBlur=14*pulse;
+  ctx.fillStyle='#44ff88';
+  ctx.beginPath();ctx.ellipse(-s*.15,-s*.44,s*.09,s*.11,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(s*.15,-s*.44,s*.09,s*.11,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#000';ctx.shadowBlur=0;
+  ctx.beginPath();ctx.arc(-s*.15,-s*.44,s*.05,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(s*.15,-s*.44,s*.05,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.6)';
+  ctx.beginPath();ctx.arc(-s*.11,-s*.48,s*.022,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(s*.19,-s*.48,s*.022,0,Math.PI*2);ctx.fill();
+
+  // Jaws & teeth
+  ctx.fillStyle='#030a03';
+  ctx.beginPath();ctx.moveTo(-s*.28,-s*.22);ctx.lineTo(s*.28,-s*.22);ctx.lineTo(s*.22,-s*.08);ctx.lineTo(0,-s*.03);ctx.lineTo(-s*.22,-s*.08);ctx.closePath();ctx.fill();
+  ctx.fillStyle='#c8e8c8';ctx.shadowColor='rgba(180,255,180,.3)';ctx.shadowBlur=3;
+  for(let t=-3;t<=3;t++){ctx.beginPath();ctx.moveTo(t*s*.066-s*.025,-s*.22);ctx.lineTo(t*s*.066,-s*.1);ctx.lineTo(t*s*.066+s*.025,-s*.22);ctx.closePath();ctx.fill();}
+  ctx.shadowBlur=0;
+
+  ctx.globalAlpha=1;ctx.restore();
+}
+
+// ── DRAW NIGHTMARE CUPCAKE ────────────────────────────────────────────────
+function drawCupcake(x,y,t,angle){
+  ctx.save();ctx.translate(x,y);ctx.rotate(angle+Math.PI/2);
+  const s=t*.4;
+  const pulse=Math.sin(bobTime*3)*.15+.85;
+  ctx.shadowColor='#ff44aa';ctx.shadowBlur=18*pulse;
+
+  // Shadow
+  ctx.fillStyle='rgba(0,0,0,0.35)';ctx.beginPath();ctx.ellipse(0,s*.62,s*.5,s*.1,0,0,Math.PI*2);ctx.fill();
+
+  // Wrapper — dark nightmare version
+  const wg=ctx.createLinearGradient(-s*.5,0,s*.5,s*.65);
+  wg.addColorStop(0,'#4a0818');wg.addColorStop(1,'#1a0208');
+  ctx.fillStyle=wg;
+  ctx.beginPath();ctx.moveTo(-s*.52,-s*.05);ctx.lineTo(-s*.4,s*.65);ctx.lineTo(s*.4,s*.65);ctx.lineTo(s*.52,-s*.05);ctx.closePath();ctx.fill();
+  // Torn wrapper edges
+  ctx.fillStyle='#1a0208';
+  for(let i=-2;i<=2;i++){const wx=i*s*.18,wy=s*.65;ctx.beginPath();ctx.moveTo(wx-s*.06,wy);ctx.lineTo(wx,wy+s*.12);ctx.lineTo(wx+s*.06,wy);ctx.closePath();ctx.fill();}
+
+  // Dark frosting with nightmare spikes
+  ctx.shadowColor='#ff00aa';ctx.shadowBlur=20*pulse;
+  const fg=ctx.createRadialGradient(-s*.1,-s*.2,s*.03,0,-s*.1,s*.5);
+  fg.addColorStop(0,'#aa0055');fg.addColorStop(.5,'#660033');fg.addColorStop(1,'#220011');
+  ctx.fillStyle=fg;ctx.beginPath();ctx.arc(0,-s*.05,s*.5,0,Math.PI*2);ctx.fill();
+  // Frosting spikes
+  ctx.fillStyle='#880044';
+  for(let i=0;i<6;i++){const a=i/6*Math.PI*2,r=s*.48,sx2=Math.cos(a)*r,sy2=Math.sin(a)*r-s*.05;ctx.beginPath();ctx.moveTo(sx2-s*.04,sy2-s*.02);ctx.lineTo(sx2+Math.cos(a)*s*.12,sy2+Math.sin(a)*s*.12);ctx.lineTo(sx2+s*.04,sy2+s*.02);ctx.closePath();ctx.fill();}
+  ctx.shadowBlur=0;
+
+  // Eyes — NIGHTMARE red glowing
+  ctx.shadowColor='#ff0000';ctx.shadowBlur=18*pulse;
+  ctx.fillStyle='#ff2200';
+  ctx.beginPath();ctx.ellipse(-s*.18,-s*.14,s*.13,s*.15,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(s*.18,-s*.14,s*.13,s*.15,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#000';ctx.shadowBlur=0;
+  ctx.beginPath();ctx.arc(-s*.18,-s*.13,s*.07,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(s*.18,-s*.13,s*.07,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='rgba(255,80,0,.7)';
+  ctx.beginPath();ctx.arc(-s*.13,-s*.18,s*.03,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(s*.23,-s*.18,s*.03,0,Math.PI*2);ctx.fill();
+
+  // Nightmare mouth — huge jagged grin
+  ctx.fillStyle='#0a0002';ctx.beginPath();ctx.ellipse(0,s*.1,s*.35,s*.22,0,0,Math.PI*2);ctx.fill();
+  ctx.shadowColor='#ff0044';ctx.shadowBlur=6;ctx.fillStyle='#e8d0cc';
+  for(let t=-4;t<=4;t++){ctx.beginPath();ctx.moveTo(t*s*.07-s*.03,s*.0);ctx.lineTo(t*s*.07,s*.2+Math.abs(t)*s*.01);ctx.lineTo(t*s*.07+s*.03,s*.0);ctx.closePath();ctx.fill();}
+  ctx.shadowBlur=0;
+
+  // Blood drips
+  ctx.fillStyle='rgba(180,0,30,.5)';
+  for(const[dx2,dy2,dh]of[[-s*.1,s*.22,s*.08],[s*.05,s*.24,s*.12],[s*.22,s*.2,s*.06]]){ctx.beginPath();ctx.moveTo(dx2-s*.015,dy2);ctx.lineTo(dx2,dy2+dh);ctx.lineTo(dx2+s*.015,dy2);ctx.closePath();ctx.fill();}
+
+  // Nightmare candle — black with green fire
+  ctx.fillStyle='#111';ctx.fillRect(-s*.03,-s*.72,s*.05,s*.26);
+  ctx.shadowColor='#00ff44';ctx.shadowBlur=12*pulse;
+  ctx.fillStyle=`rgba(0,${Math.floor(180+pulse*75)},50,.9)`;
+  ctx.beginPath();ctx.moveTo(0,-s*.8);ctx.quadraticCurveTo(s*.06,-s*.73,0,-s*.65);ctx.quadraticCurveTo(-s*.06,-s*.73,0,-s*.8);ctx.fill();
+  ctx.shadowBlur=0;
+
+  // Legs/feet scurrying
+  const legSwing=Math.sin(bobTime*8)*s*.18;
+  ctx.fillStyle='#330010';
+  ctx.beginPath();ctx.ellipse(-s*.2,s*.55+legSwing,s*.12,s*.22,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(s*.2,s*.55-legSwing,s*.12,s*.22,0,0,Math.PI*2);ctx.fill();
+
+  ctx.restore();
+}
+
+function drawCupcakeFace(c,cx,cy,s){
+  c.save();c.translate(cx,cy);
+  c.shadowColor='#ff0088';c.shadowBlur=70;
+  const fg=c.createRadialGradient(-s*.1,-s*.1,s*.04,0,0,s*.52);
+  fg.addColorStop(0,'#aa0055');fg.addColorStop(.6,'#440022');fg.addColorStop(1,'#110008');
+  c.fillStyle=fg;c.beginPath();c.ellipse(0,0,s*.5,s*.52,0,0,Math.PI*2);c.fill();
+  // Spikes around edge
+  c.fillStyle='#770033';
+  for(let i=0;i<8;i++){const a=i/8*Math.PI*2;c.beginPath();c.moveTo(Math.cos(a)*s*.44,Math.sin(a)*s*.44);c.lineTo(Math.cos(a)*s*.58,Math.sin(a)*s*.58);c.lineTo(Math.cos(a+0.2)*s*.44,Math.sin(a+0.2)*s*.44);c.closePath();c.fill();}
+  c.shadowColor='#ff0000';c.shadowBlur=40;c.fillStyle='#ff1100';
+  c.beginPath();c.ellipse(-s*.18,-s*.1,s*.15,s*.17,0,0,Math.PI*2);c.fill();
+  c.beginPath();c.ellipse(s*.18,-s*.1,s*.15,s*.17,0,0,Math.PI*2);c.fill();
+  c.shadowBlur=0;c.fillStyle='#000';
+  c.beginPath();c.arc(-s*.18,-s*.09,s*.08,0,Math.PI*2);c.fill();
+  c.beginPath();c.arc(s*.18,-s*.09,s*.08,0,Math.PI*2);c.fill();
+  c.fillStyle='#080002';c.beginPath();c.ellipse(0,s*.2,s*.38,s*.24,0,0,Math.PI*2);c.fill();
+  c.shadowColor='rgba(255,200,200,.4)';c.shadowBlur=6;c.fillStyle='#e0c8c4';
+  for(let t=-4;t<=4;t++){c.beginPath();c.moveTo(t*s*.07-s*.03,s*.08);c.lineTo(t*s*.07,s*.32);c.lineTo(t*s*.07+s*.03,s*.08);c.closePath();c.fill();}
+  c.shadowBlur=0;c.restore();
+}
+
+// ── UI ────────────────────────────────────────────────────────────────────
+function updateUI(){
+  document.getElementById('score-txt').textContent='⭐ '+score;
+  document.getElementById('level-txt').textContent='NIGHT '+level+'/5';
+  document.getElementById('lives-txt').textContent='🦖'.repeat(Math.max(0,lives));
+  document.getElementById('coins-wrap').textContent='🪙 '+(coinsTotal-coinsLeft)+' / '+coinsTotal;
+}
+function showMsg(t){const el=document.getElementById('msg');el.textContent=t;el.style.opacity='1';clearTimeout(msgTimer);msgTimer=setTimeout(()=>el.style.opacity='0',2200);}
+
+function endGame(win){
+  const ov=document.getElementById('overlay');
+  HS.showGameOver({
+    key:'dino_hide', score, overlayEl:ov,
+    title: win ? '🦖 DINO ESCAPED!' : '🧁 CUPCAKE GOT DINO!',
+    subtitle: win ? 'All 5 nights survived!' : `Night ${level} · Hide behind trees and bushes next time!`,
+    btnLabel: win ? '▶ PLAY AGAIN' : '▶ TRY AGAIN',
+    onRestart:()=>{ ea();score=0;lives=3;startLevel(1);running=true; },
+    hiColor:'#88ffaa',
+    titleStyle:"font-family:'Creepster',cursive;font-size:clamp(1.8rem,6vw,3rem);color:#88ffaa;text-shadow:0 0 30px #00aa44;letter-spacing:2px;text-align:center;margin-bottom:8px",
+    btnClass:'btn'
+  });
+}
+
+// ── LOOP ──────────────────────────────────────────────────────────────────
+function loop(now){
+  const dt=Math.min((now-lastTime)/1000,.05);lastTime=now;
+  try{update(dt);draw();}catch(e){console.error(e);}
+  requestAnimationFrame(loop);
+}
+document.getElementById('startBtn').addEventListener('click',()=>{
+  ea();document.getElementById('overlay').style.display='none';startLevel(1);running=true;
+});
+requestAnimationFrame(t=>{lastTime=t;requestAnimationFrame(loop);});
+</script>
+</body>
+</html>
