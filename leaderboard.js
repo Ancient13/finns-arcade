@@ -15,7 +15,7 @@
  */
 
 // ── Cloud config ─────────────────────────────────────────────────────────
-const JSONBIN_API_KEY = '$2a$10$REPLACE_WITH_YOUR_JSONBIN_API_KEY';
+const JSONBIN_API_KEY = '$2a$10$.5buyHiWjed.ThInFE0U/OoAIs5g4OQwZK//lOdsgHqhhyDfJwSv2';
 const JSONBIN_BIN_ID  = 'REPLACE_WITH_YOUR_BIN_ID'; // set after first auto-create
 const CLOUD_ENABLED   = !JSONBIN_API_KEY.includes('REPLACE');
 // ─────────────────────────────────────────────────────────────────────────
