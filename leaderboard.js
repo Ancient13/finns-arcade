@@ -41,12 +41,32 @@ const HS = {
         : localStorage.getItem('hs_cloud_bin_id');
 
       if (binId) {
-        // Update existing bin
-        fetch(`https://api.jsonbin.io/v3/b/${binId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_API_KEY },
-          body: JSON.stringify(all)
-        }).catch(() => {});
+        // GET current cloud scores, merge with local, then PUT merged result
+        // (avoids overwriting other players' scores)
+        const MAX = this.MAX;
+        fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, {
+          headers: { 'X-Master-Key': JSONBIN_API_KEY, 'X-Bin-Meta': 'false' }
+        })
+        .then(r => r.json())
+        .then(cloud => {
+          const merged = Object.assign({}, all);
+          if (cloud && typeof cloud === 'object') {
+            Object.keys(cloud).forEach(key => {
+              const remote = Array.isArray(cloud[key]) ? cloud[key] : [];
+              const local  = merged[key] || [];
+              merged[key]  = [...local, ...remote]
+                .filter((e, i, arr) => arr.findIndex(x => x.n === e.n && x.s === e.s) === i)
+                .sort((a, b) => b.s - a.s)
+                .slice(0, MAX);
+            });
+          }
+          return fetch(`https://api.jsonbin.io/v3/b/${binId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_API_KEY },
+            body: JSON.stringify(merged)
+          });
+        })
+        .catch(() => {});
       } else {
         // Create bin on first push
         fetch('https://api.jsonbin.io/v3/b', {
@@ -244,6 +264,12 @@ const HS = {
     const isHi = this.isTop(key, score);
     overlayEl.style.display = 'flex';
 
+    // Pull cloud scores so in-game leaderboard shows all players, not just local
+    this._cloudPull().then(() => {
+      const lbEl = document.getElementById('_hs_lb');
+      if (lbEl) lbEl.innerHTML = this.tableHTML(key, hiColor, null);
+    });
+
     if (isHi && score > 0) {
       overlayEl.innerHTML = `
         <h2 style="${titleStyle}">${title}</h2>
@@ -292,7 +318,7 @@ const HS = {
         <p style="color:${hiColor};font-size:1.4rem;font-weight:900;font-family:monospace;letter-spacing:2px;margin:4px 0">SCORE: ${score}</p>
         ${subtitle ? `<p style="color:#aaa;margin:4px 0">${subtitle}</p>` : ''}
         <p style="color:${hiColor};font-size:0.9rem;font-weight:900;margin:10px 0 4px;letter-spacing:1px">🏆 LEADERBOARD</p>
-        ${this.tableHTML(key, hiColor, null)}
+        <div id="_hs_lb">${this.tableHTML(key, hiColor, null)}</div>
       `;
       const btn = document.createElement('button');
       btn.className = btnClass;
