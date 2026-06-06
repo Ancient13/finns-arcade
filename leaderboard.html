@@ -293,6 +293,13 @@ if(typeof CLOUD_ENABLED !== 'undefined' && CLOUD_ENABLED){
 window.addEventListener('storage', e => {
   if(e.key === 'hs_updated' || e.key === 'hs_cloud_bin_id') buildBoards();
 });
+
+// Poll cloud every 45 seconds so the page stays live without a manual reload
+if(typeof CLOUD_ENABLED !== 'undefined' && CLOUD_ENABLED){
+  setInterval(() => {
+    HS._cloudPull().then(() => buildBoards());
+  }, 45000);
+}
 </script>
 </body>
 </html>

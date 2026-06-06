@@ -264,12 +264,6 @@ const HS = {
     const isHi = this.isTop(key, score);
     overlayEl.style.display = 'flex';
 
-    // Pull cloud scores so in-game leaderboard shows all players, not just local
-    this._cloudPull().then(() => {
-      const lbEl = document.getElementById('_hs_lb');
-      if (lbEl) lbEl.innerHTML = this.tableHTML(key, hiColor, null);
-    });
-
     if (isHi && score > 0) {
       overlayEl.innerHTML = `
         <h2 style="${titleStyle}">${title}</h2>
@@ -286,6 +280,12 @@ const HS = {
         </div>
         <div id="_hs_lb" style="margin:4px 0 8px">${this.tableHTML(key, hiColor, null)}</div>
       `;
+
+      // Pull cloud scores after HTML is in DOM so #_hs_lb exists
+      this._cloudPull().then(() => {
+        const lbEl = document.getElementById('_hs_lb');
+        if (lbEl) lbEl.innerHTML = this.tableHTML(key, hiColor, null);
+      });
 
       const ini = document.getElementById('_hs_ini');
       const saveBtn = document.getElementById('_hs_save');
@@ -320,6 +320,13 @@ const HS = {
         <p style="color:${hiColor};font-size:0.9rem;font-weight:900;margin:10px 0 4px;letter-spacing:1px">🏆 LEADERBOARD</p>
         <div id="_hs_lb">${this.tableHTML(key, hiColor, null)}</div>
       `;
+
+      // Pull cloud scores after HTML is in DOM so #_hs_lb exists
+      this._cloudPull().then(() => {
+        const lbEl = document.getElementById('_hs_lb');
+        if (lbEl) lbEl.innerHTML = this.tableHTML(key, hiColor, null);
+      });
+
       const btn = document.createElement('button');
       btn.className = btnClass;
       btn.setAttribute('style', (btnStyle || '') + 'margin-top:12px');
