@@ -169,7 +169,10 @@
 <div id="boards"></div>
 
 <div id="last-updated"></div>
-<div id="cloud-status" style="text-align:center;font-size:0.7rem;letter-spacing:1px;margin:4px 0;opacity:0.5"></div>
+<div id="cloud-status" style="text-align:center;font-size:0.8rem;letter-spacing:1px;margin:6px 0;opacity:0.8"></div>
+<div style="text-align:center;margin:4px 0 8px">
+  <button id="refresh-btn" onclick="doRefresh()" style="background:rgba(255,215,0,0.1);color:#ffd700;border:1px solid #ffd70066;border-radius:20px;padding:5px 18px;font-size:0.8rem;cursor:pointer;font-family:inherit;letter-spacing:1px;">🔄 Refresh Scores</button>
+</div>
 
 <div class="divider"></div>
 <footer>Made with ❤️ for <span>Finn</span> · Finn's Arcade 2025</footer>
@@ -282,11 +285,29 @@ function buildBoards(){
 // Pull cloud scores first, then render (shows local immediately, refreshes after cloud sync)
 buildBoards();
 const cloudEl = document.getElementById('cloud-status');
+
+function doRefresh() {
+  const btn = document.getElementById('refresh-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Syncing...';
+  cloudEl.textContent = '🌐 Syncing shared scores...';
+  HS._cloudPull().then(() => {
+    buildBoards();
+    cloudEl.textContent = '✅ Synced — scores from all players';
+    btn.textContent = '🔄 Refresh Scores';
+    btn.disabled = false;
+  }).catch(() => {
+    cloudEl.textContent = '⚠️ Sync failed — showing local scores';
+    btn.textContent = '🔄 Refresh Scores';
+    btn.disabled = false;
+  });
+}
+
 if(typeof CLOUD_ENABLED !== 'undefined' && CLOUD_ENABLED){
   cloudEl.textContent = '🌐 Syncing shared scores...';
-  HS._cloudPull().then(() => { buildBoards(); cloudEl.textContent = '✅ Shared leaderboard — scores from all players'; });
+  HS._cloudPull().then(() => { buildBoards(); cloudEl.textContent = '✅ Synced — scores from all players'; });
 } else {
-  cloudEl.textContent = '📱 Local scores only — see README to enable shared cloud leaderboard';
+  cloudEl.textContent = '📱 Local scores only';
 }
 
 // Auto-refresh if a game updates scores while this tab is open

@@ -48,13 +48,17 @@ const HS = {
           headers: { 'X-Master-Key': JSONBIN_API_KEY, 'X-Bin-Meta': 'false' }
         })
         .then(r => r.json())
-        .then(cloud => {
+        .then(raw => {
+          // Handle both raw and wrapped { record:{...} } response formats
+          const cloud = (raw && raw.record && typeof raw.record === 'object' && !Array.isArray(raw.record))
+            ? raw.record : raw;
           const merged = Object.assign({}, all);
-          if (cloud && typeof cloud === 'object') {
+          if (cloud && typeof cloud === 'object' && !Array.isArray(cloud)) {
             Object.keys(cloud).forEach(key => {
               const remote = Array.isArray(cloud[key]) ? cloud[key] : [];
               const local  = merged[key] || [];
-              merged[key]  = [...local, ...remote]
+              if (!remote.length) { if (!merged[key]) merged[key] = local; return; }
+              merged[key]  = [...(Array.isArray(local) ? local : []), ...remote]
                 .filter((e, i, arr) => arr.findIndex(x => x.n === e.n && x.s === e.s) === i)
                 .sort((a, b) => b.s - a.s)
                 .slice(0, MAX);
@@ -103,9 +107,11 @@ const HS = {
       headers: { 'X-Master-Key': JSONBIN_API_KEY, 'X-Bin-Meta': 'false' }
     })
     .then(r => r.json())
-    .then(cloud => {
-      // cloud is an object: { gameKey: [{n,s}, ...], ... }
-      if (!cloud || typeof cloud !== 'object') return;
+    .then(raw => {
+      // JSONBin v3 returns either raw data or { record:{...}, metadata:{...} }
+      const cloud = (raw && raw.record && typeof raw.record === 'object' && !Array.isArray(raw.record))
+        ? raw.record : raw;
+      if (!cloud || typeof cloud !== 'object' || Array.isArray(cloud)) return;
       Object.keys(cloud).forEach(key => {
         const remote = Array.isArray(cloud[key]) ? cloud[key] : [];
         if (!remote.length) return;
